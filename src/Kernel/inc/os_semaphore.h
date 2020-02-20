@@ -10,22 +10,21 @@
 
 
 /* --------------------------------------- Type definitions and structures --------------------------------------- */
+typedef enum {
+    SEMAPHORE_MUTEX,
+    SEMAPHORE_FLAG
+} SemaphoreType;
+
 // Forward definition as OS_SemaphoreObjectTypeDef depends on OS_TCBTypeDef, and vice versa
 typedef struct OS_TCBStruct OS_TCBTypeDef;
 
 typedef struct OS_SemaphoreStruct {
     int32_t value;
+    SemaphoreType type;
     OS_TCBTypeDef *owner;
-    uint32_t numKeys;
-    uint32_t PrioBefore;
-    uint32_t PrioGranted;
+    uint32_t priorityHasBeenGranted;
+    uint32_t priorityLevelGranted;
 } OS_SemaphoreObjectTypeDef;
-
-typedef enum {
-    SEMAPHORE_MUTEX   = 0x0,
-    SEMAPHORE_MAILBOX = 0x1
-} SemaphoreType;
-
 
 /***
  * @brief: Initializes a semaphore

@@ -19,9 +19,9 @@
 static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *));
 
 /**
- * @brief: Helper function to map the values to the TCB struct
+ * @brief: Helper function to map the initial values to the TCB struct
  */
-static void OS_MapThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier);
+static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier);
 
 /***
  * @brief: Adds a TCB to the global linked list of threads, the new TCB will become runPtr if it has highest priority
@@ -83,6 +83,54 @@ void OS_ResetThreads(void) {
     blockTailPtr = NULL;
 }
 
+/**
+ * @brief: Finds a ready thread with the specified identifier. Returns NULL if none found. Only compiled for tests.
+ */
+OS_TCBTypeDef *OS_GetReadyThreadByIdentifier(const char *identifier) {
+    OS_TCBTypeDef *tmpPtr = readyHeadPtr;
+    while (tmpPtr != NULL) {
+        if (tmpPtr->identifier == identifier) {
+            return tmpPtr;
+        }
+
+        tmpPtr = tmpPtr->next;
+    }
+
+    return NULL;
+}
+/**
+ * @brief: Finds a blocked thread with the specified identifier. Returns NULL if none found. Only compiled for tests.
+ */
+OS_TCBTypeDef *OS_GetBlockedThreadByIdentifier(const char *identifier) {
+    OS_TCBTypeDef *tmpPtr = blockHeadPtr;
+    while (tmpPtr != NULL) {
+        if (tmpPtr->identifier == identifier) {
+            return tmpPtr;
+        }
+
+        tmpPtr = tmpPtr->next;
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief: Finds a sleeping thread with the specified identifier. Returns NULL if none found. Only compiled for tests.
+ */
+OS_TCBTypeDef *OS_GetSleepingThreadByIdentifier(const char *identifier) {
+    OS_TCBTypeDef *tmpPtr = sleepHeadPtr;
+    while (tmpPtr != NULL) {
+        if (tmpPtr->identifier == identifier) {
+            return tmpPtr;
+        }
+
+        tmpPtr = tmpPtr->next;
+    }
+
+    return NULL;
+}
+
+
 static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *)) {
     // Make stkPtr point to last element
     thread->stkPtr = &thread->stkPtr[thread->stackSize-1];
@@ -115,7 +163,7 @@ static void OS_AddThread(OS_TCBTypeDef *thread) {
     }
 }
 
-static void OS_MapThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier) {
+static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier) {
     thread->stkPtr = stkPtr;
     thread->next = NULL;
     thread->prev = NULL;
@@ -140,7 +188,7 @@ void OS_CreateThread(void (*function)(void *), StackElementTypeDef *stkPtr, uint
     assert(stackSize > 16);
 
     OS_TCBTypeDef *newThread = &threadAllocations[threadsCreated];
-    OS_MapThreadValues(newThread, stkPtr, stackSize, priority, identifier);
+    OS_MapInitialThreadValues(newThread, stkPtr, stackSize, priority, identifier);
     OS_InitializeTCBStack(newThread, function);
     OS_AddThread(newThread);
     threadsCreated++;
@@ -149,8 +197,9 @@ void OS_CreateThread(void (*function)(void *), StackElementTypeDef *stkPtr, uint
 void OS_CreateIdleThread(void (*idleFunction)(void *), StackElementTypeDef *idleStkPtr, uint32_t stackSize) {
     // Make sure stack can fit at least the initial stack frame
     assert(stackSize > 16);
+
     OS_TCBTypeDef *idleThread = &idleThreadAllocation;
-    OS_MapThreadValues(idleThread, idleStkPtr, stackSize, THREAD_MIN_PRIORITY + 1, "Idle thread");
+    OS_MapInitialThreadValues(idleThread, idleStkPtr, stackSize, THREAD_MIN_PRIORITY + 1, "Idle thread");
     OS_InitializeTCBStack(idleThread, idleFunction);
     idlePtr = idleThread;
     // Make the run pointer be the idle thread just in case no other threads are added
@@ -176,14 +225,6 @@ static void OS_ThreadLinkedListRemove(OS_TCBTypeDef **head, OS_TCBTypeDef **tail
     element->next = NULL;
     element->prev = NULL;
 
-    if (next != NULL) {
-        next->prev = previous;
-    }
-
-    if (previous != NULL) {
-        previous->next = next;
-    }
-
     // This was the only element
     if (previous == NULL && next == NULL) {
         *head = NULL;
@@ -191,8 +232,17 @@ static void OS_ThreadLinkedListRemove(OS_TCBTypeDef **head, OS_TCBTypeDef **tail
         return;
     }
 
-    // If next is NULL, the previous element is the new last, otherwise just use the next element
-    *tail = (next != NULL) ? next : previous;
+    if (next != NULL) {
+        next->prev = previous;
+    } else {
+        *tail = previous;
+    }
+
+    if (previous != NULL) {
+        previous->next = next;
+    } else {
+        *head = next;
+    }
 }
 
 void OS_ReadyListInsert(OS_TCBTypeDef *thread) {
@@ -215,7 +265,7 @@ void OS_SleepListInsert(OS_TCBTypeDef *thread) {
 
 void OS_SleepListRemove(OS_TCBTypeDef *thread) {
     uint32_t priority = OS_CriticalEnter();
-    OS_ThreadLinkedListInsert(&sleepHeadPtr, &sleepTailPtr, thread);
+    OS_ThreadLinkedListRemove(&sleepHeadPtr, &sleepTailPtr, thread);
     OS_CriticalExit(priority);
 }
 
@@ -227,6 +277,6 @@ void OS_BlockedListInsert(OS_TCBTypeDef *thread) {
 
 void OS_BlockedListRemove(OS_TCBTypeDef *thread) {
     uint32_t priority = OS_CriticalEnter();
-    OS_ThreadLinkedListInsert(&blockHeadPtr, &blockTailPtr, thread);
+    OS_ThreadLinkedListRemove(&blockHeadPtr, &blockTailPtr, thread);
     OS_CriticalExit(priority);
 }

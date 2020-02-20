@@ -26,7 +26,10 @@ extern OS_TCBTypeDef *blockTailPtr;
 
 /* -------------------------------------------- Test helper functions -------------------------------------------- */
 #if TEST
-void OS_ResetThreads();;
+void OS_ResetThreads();
+OS_TCBTypeDef *OS_GetReadyThreadByIdentifier(const char *identifier);
+OS_TCBTypeDef *OS_GetBlockedThreadByIdentifier(const char *identifier);
+OS_TCBTypeDef *OS_GetSleepingThreadByIdentifier(const char *identifier);
 #endif
 
 

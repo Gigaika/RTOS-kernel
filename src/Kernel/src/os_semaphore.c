@@ -11,49 +11,55 @@
 
 /* ---------------------------------------- Private function declarations ---------------------------------------- */
 /***
- * @brief: If the owner of the semaphore has lower priority than the currently running thread,
- *         then temporarily grant the owner of the semaphore an equal priority as the currently running thread
- * @param semaphoreObject: The semaphore whose owner is should get a temporary priority boost (if needed)
+ * @brief: Makes the semaphore owners priority match the currently running threads priority,
+ *         until it gives up control of the semaphore
+ * @param semaphoreObject: The semaphore whose owners priority will be elevated
  */
 static void grantDynamicPriorityToOwner(OS_SemaphoreObjectTypeDef *semaphoreObject);
 
 /***
- * @brief: If the owner of the semaphore was granted "dynamic" priority for priority inheritance,
- *         then revert the changes, unless it has gained an even lower priority since
- * @param semaphoreObject: The semaphore whose owner is to be reverted to its original priority
+ * @brief: Reverts the threads priority level to either the base priority, or to the next highest priority level,
+ *         if another semaphore has also elevated its priority
+ * @param semaphoreObject: The semaphore whose owners priority will be restored
  */
 static void removeDynamicPriorityFromOwner(OS_SemaphoreObjectTypeDef *semaphoreObject);
 
 /**
  * @brief: Iterates the linked list of threads, and unblocks the lowest priority task that is waiting for the semaphore.
- *         Complies with round robin, so if multiple tasks have same priority, the longest waiting one is chosen.
+ *         Round robin, so if multiple threads have the same priority, the longest waiting one is chosen.
  * @param semaphore: Pointer to the semaphore that the task to be freed should be waiting for
  * @return: 1 if the unblocked task has higher priority than the currently running task
  */
 static int32_t unblockThread(OS_SemaphoreObjectTypeDef *semaphoreObject);
 
-void semaphoreAddOwner(OS_SemaphoreObjectTypeDef *semaphoreObject, OS_TCBTypeDef *newOwner);
-void semaphoreRemoveOwner(OS_SemaphoreObjectTypeDef *semaphoreObject);
+static void semaphoreSetOwner(OS_SemaphoreObjectTypeDef *semaphoreObject, OS_TCBTypeDef *newOwner);
+
+static void semaphoreRemoveOwner(OS_SemaphoreObjectTypeDef *semaphoreObject);
 
 
-// TODO: Support multiple instances and multiple owners
+/* -------------------------------------------- Function definitions ---------------------------------------------- */
 void OS_InitSemaphore(OS_SemaphoreObjectTypeDef *semaphoreObject, SemaphoreType type) {
     if (type == SEMAPHORE_MUTEX) {
         semaphoreObject->value = 1;
-    } else if (type == SEMAPHORE_MAILBOX) {
+        semaphoreObject->type = SEMAPHORE_MUTEX;
+    } else if (type == SEMAPHORE_FLAG) {
         semaphoreObject->value = 0;
+        semaphoreObject->type = SEMAPHORE_FLAG;
     }
+
     semaphoreObject->owner = NULL;
-    semaphoreObject->numKeys = 1;
-    semaphoreObject->PrioBefore = 0;
-    semaphoreObject->PrioGranted = 0;
+    semaphoreObject->priorityHasBeenGranted = 0;
+    semaphoreObject->priorityLevelGranted = 0;
 }
 
-void semaphoreAddOwner(OS_SemaphoreObjectTypeDef *semaphoreObject, OS_TCBTypeDef *newOwner) {
-    semaphoreObject->owner = newOwner;
+
+static void semaphoreSetOwner(OS_SemaphoreObjectTypeDef *semaphoreObject, OS_TCBTypeDef *newOwner) {
+    if (semaphoreObject->type != SEMAPHORE_FLAG) {
+        semaphoreObject->owner = newOwner;
+    }
 }
 
-void semaphoreRemoveOwner(OS_SemaphoreObjectTypeDef *semaphoreObject) {
+static void semaphoreRemoveOwner(OS_SemaphoreObjectTypeDef *semaphoreObject) {
     semaphoreObject->owner = NULL;
 }
 
@@ -61,12 +67,14 @@ static int32_t unblockThread(OS_SemaphoreObjectTypeDef *semaphoreObject) {
     OS_TCBTypeDef *tmpPtr = blockHeadPtr;
     OS_TCBTypeDef *highestPtr = NULL;
 
-    // Iterate through the linked list of threads and find a thread blocked by the same semaphore, and unblock it
+    // Iterate through the linked list of blocked threads, and find the lowest priority thread blocked by the same semaphore
     while (tmpPtr != NULL) {
-        if ((tmpPtr->blockPtr == semaphoreObject) && (highestPtr == NULL)) {
-            highestPtr = tmpPtr;
-        } else if ((tmpPtr->blockPtr == semaphoreObject) && (tmpPtr->priority < highestPtr->priority)) {
-            highestPtr = tmpPtr;
+        if (tmpPtr->blockPtr == semaphoreObject) {
+            if (highestPtr == NULL) {
+                highestPtr = tmpPtr;
+            } else if (tmpPtr->priority < highestPtr->priority) {
+                highestPtr = tmpPtr;
+            }
         }
 
         tmpPtr = tmpPtr->next;
@@ -75,9 +83,10 @@ static int32_t unblockThread(OS_SemaphoreObjectTypeDef *semaphoreObject) {
     assert(highestPtr != NULL);
 
     // Remove the block from the highest priority thread found
+    highestPtr->blockPtr = NULL;
     OS_BlockedListRemove(highestPtr);
     OS_ReadyListInsert(highestPtr);
-    semaphoreAddOwner(semaphoreObject, highestPtr);
+    semaphoreSetOwner(semaphoreObject, highestPtr);
 
     // Return one if the unblocked thread is higher priority than currently executing thread
     return (highestPtr->priority < runPtr->priority);
@@ -85,15 +94,42 @@ static int32_t unblockThread(OS_SemaphoreObjectTypeDef *semaphoreObject) {
 
 
 static void removeDynamicPriorityFromOwner(OS_SemaphoreObjectTypeDef *semaphoreObject) {
-    if (semaphoreObject->PrioBefore == semaphoreObject->owner->priority) {
+    // No priority gained through this semaphore, do nothing
+    if ((!semaphoreObject->priorityHasBeenGranted)) {
         return;
-    } else {
-        // Task was granted even higher priority by something else, leave it be
-        if (semaphoreObject->owner->priority < semaphoreObject->PrioGranted) {
-            return;
-        }
-        semaphoreObject->owner->priority = semaphoreObject->PrioBefore;
     }
+
+    if (semaphoreObject->owner->priority < semaphoreObject->priorityLevelGranted) {
+        semaphoreObject->priorityHasBeenGranted = 0;
+        semaphoreObject->priorityLevelGranted = 0;
+        return;
+    }
+
+    OS_TCBTypeDef *tmpPtr = blockHeadPtr;
+    OS_TCBTypeDef *highestPtr = NULL;
+    while (tmpPtr != NULL) {
+        // Find threads that are being blocked by the currently running thread, but through a different semaphore
+        if ((tmpPtr->blockPtr != semaphoreObject) && (tmpPtr->blockPtr->owner == semaphoreObject->owner)) {
+            if (highestPtr == NULL) {
+                highestPtr = tmpPtr;
+            } else if (tmpPtr->priority < highestPtr->priority) {
+                highestPtr = tmpPtr;
+            }
+        }
+        tmpPtr = tmpPtr->next;
+    }
+
+    if (highestPtr == NULL) {
+        // This is the last semaphore owned by this thread, so we can safely restore priority to the base priority level
+        semaphoreObject->owner->priority = semaphoreObject->owner->basePriority;
+    } else {
+        // The thread still owns other semaphores, restore priority to match the highest priority task being blocked
+        // by one of them, to conserve priority inheritance handled by the other semaphores
+        semaphoreObject->owner->priority = highestPtr->priority;
+    }
+
+    semaphoreObject->priorityHasBeenGranted = 0;
+    semaphoreObject->priorityLevelGranted = 0;
 }
 
 void OS_Signal(OS_SemaphoreObjectTypeDef *semaphoreObject) {
@@ -105,35 +141,33 @@ void OS_Signal(OS_SemaphoreObjectTypeDef *semaphoreObject) {
         semaphoreObject->value = 1;
     }
 
-    removeDynamicPriorityFromOwner(semaphoreObject);
-    semaphoreRemoveOwner(semaphoreObject);
-    // If someone is waiting for the semaphore, unblock one of the waiting threads
+    // Flag semaphores and signals from ISRs should not have the owner manipulated in any way
+    if ((semaphoreObject->owner != NULL) && (semaphoreObject->type != SEMAPHORE_FLAG)) {
+        removeDynamicPriorityFromOwner(semaphoreObject);
+        semaphoreRemoveOwner(semaphoreObject);
+    }
+
+    // If someone is waiting for this semaphore, unblock the highest priority thread on the semaphores block list
     if (semaphoreObject->value < 1) {
-        // Thread will suspend if the unblocked task is higher priority
         shouldSuspend = unblockThread(semaphoreObject);
     }
 
     OS_CriticalExit(priority);
 
+    // Currently running thread will suspend if the unblocked task was higher priority
     if (shouldSuspend == 1) {
         OS_Suspend();
     }
 }
 
 static void grantDynamicPriorityToOwner(OS_SemaphoreObjectTypeDef *semaphoreObject) {
-    semaphoreObject->PrioBefore = semaphoreObject->owner->priority;
-    // If the owner of the semaphore has lower priority than the task getting blocked, elevate its priority temporarily
-    if (semaphoreObject->owner->priority < runPtr->priority) {
-        semaphoreObject->owner->priority = runPtr->priority;
-        semaphoreObject->PrioGranted = runPtr->priority;
-    } else {
-        semaphoreObject->PrioGranted = semaphoreObject->owner->priority;
-    }
+    semaphoreObject->owner->priority = runPtr->priority;
+    semaphoreObject->priorityLevelGranted = runPtr->priority;
+    semaphoreObject->priorityHasBeenGranted = 1;
 }
 
 void OS_Wait(OS_SemaphoreObjectTypeDef *semaphoreObject) {
     uint32_t priority = OS_CriticalEnter();
-
     semaphoreObject->value -= 1;
 
     // If no semaphore available, block the thread on the semaphore and suspend the thread
@@ -141,14 +175,18 @@ void OS_Wait(OS_SemaphoreObjectTypeDef *semaphoreObject) {
         OS_ReadyListRemove(runPtr);
         OS_BlockedListInsert(runPtr);
         runPtr->blockPtr = semaphoreObject;
-        // If not mailbox
-        if (semaphoreObject->owner != NULL) {
-            grantDynamicPriorityToOwner(semaphoreObject);
+
+        if (semaphoreObject->type != SEMAPHORE_FLAG) {
+            // If owner of thread has higher priority than the currently running thread, elevate the owner priority
+            if (runPtr->priority <= semaphoreObject->owner->priority) {
+                grantDynamicPriorityToOwner(semaphoreObject);
+            }
         }
+
         OS_CriticalExit(priority);
         OS_Suspend();
     } else {
-        semaphoreObject->owner = runPtr;
+        semaphoreSetOwner(semaphoreObject, runPtr);
         OS_CriticalExit(priority);
     }
 }

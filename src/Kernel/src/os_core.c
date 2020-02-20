@@ -26,7 +26,6 @@ void OS_ResetState() {
 
 /* --------------------------------------------- OS Startup functions --------------------------------------------- */
 void OS_Init(void (*idleFunction)(void *), StackElementTypeDef *idleStackPtr, uint32_t idleStackSize) {
-    // Make sure interrupts are disabled during initialization
     DisableInterrupts();
     // Configure system clock using the board support package
     BSP_SysClockConfig(SYSCLOCK_FREQUENCY);

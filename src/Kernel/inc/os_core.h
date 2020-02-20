@@ -21,8 +21,8 @@ struct OS_TCBStruct {
     OS_TCBTypeDef *prev;
     const char *identifier;
     uint32_t stackSize;
-    uint32_t priority;
     uint32_t basePriority;
+    uint32_t priority;
     OS_SemaphoreObjectTypeDef *blockPtr;
     uint32_t sleep;
 };

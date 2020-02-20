@@ -26,25 +26,160 @@ void tearDown(void) {
     OS_ResetState();
 }
 
-void test_threadsCanBeCreated(void) {
+/* -------------------------------------------- Thread creation tests---------------------------------------------- */
+void test_ThreadFinderFunctionWorks(void) {
     StackElementTypeDef testStack[20];
     OS_CreateThread(&testFn, testStack, 20,3, "test thread");
-    TEST_ASSERT_EQUAL_STRING(readyTailPtr->identifier, "test thread");
+
+    OS_TCBTypeDef *found = OS_GetReadyThreadByIdentifier("test thread");
+    OS_TCBTypeDef *notFound = OS_GetReadyThreadByIdentifier("test thread not");
+
+    TEST_ASSERT_EQUAL_STRING("test thread", found->identifier);
+    TEST_ASSERT_EQUAL_PTR(NULL, notFound);
 }
 
-void test_multipleThreadsCanBeCreated(void) {
+void test_IdleThreadExistsAfterInit(void) {
+    TEST_ASSERT_TRUE(idlePtr != NULL);
+    TEST_ASSERT_TRUE(runPtr != NULL);
+}
+
+void test_ThreadsCanBeCreated(void) {
+    StackElementTypeDef testStack[20];
+    OS_CreateThread(&testFn, testStack, 20,3, "test thread");
+
+    TEST_ASSERT_EQUAL_STRING("test thread", readyTailPtr->identifier);
+}
+
+void test_MultipleThreadsCanBeCreated(void) {
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");
+
+    StackElementTypeDef testStack2[20];
+    OS_CreateThread(&testFn, testStack2, 20,3, "test thread2");
+
+    TEST_ASSERT_EQUAL_STRING("test thread1", readyHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread2", readyTailPtr->identifier);
+}
+
+void test_ThreadStackIsCorrectlyInitialized(void) {
+    StackElementTypeDef testStack[20] = {0};
+    OS_CreateThread(&testFn, testStack,20, 3, "test thread");
+
+    TEST_ASSERT_EQUAL_PTR(&testStack[4], runPtr->stkPtr);
+    TEST_ASSERT_EQUAL_INT(0x0100000, testStack[19]);
+    TEST_ASSERT_EQUAL_INT(0x04040404, testStack[4]);
+}
+
+/* ------------------------------------------ Thread list remove tests--------------------------------------------- */
+void test_ThreadListRemoveFirstItemWorks(void) {
     StackElementTypeDef testStack1[20];
     OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");
     StackElementTypeDef testStack2[20];
     OS_CreateThread(&testFn, testStack2, 20,3, "test thread2");
-    TEST_ASSERT_EQUAL_STRING(readyHeadPtr->identifier, "test thread1");
-    TEST_ASSERT_EQUAL_STRING(readyTailPtr->identifier, "test thread2");
+    StackElementTypeDef testStack3[20];
+    OS_CreateThread(&testFn, testStack3, 20,3, "test thread3");
+
+    OS_TCBTypeDef *toBeRemoved = OS_GetReadyThreadByIdentifier("test thread1");
+    OS_ReadyListRemove(toBeRemoved);
+
+    TEST_ASSERT_EQUAL_STRING("test thread2", readyHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread3", readyTailPtr->identifier);
+    TEST_ASSERT_EQUAL_PTR(NULL, readyHeadPtr->prev);
+    TEST_ASSERT_EQUAL_PTR(readyTailPtr, readyHeadPtr->next);
+    TEST_ASSERT_EQUAL_PTR(readyHeadPtr, readyTailPtr->prev);
+
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->next);
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->prev);
 }
 
-void test_threadStackIsCorrectlyInitialized(void) {
-    StackElementTypeDef testStack[20] = {0};
-    OS_CreateThread(&testFn, testStack,20, 3, "test thread");
-    TEST_ASSERT_EQUAL_PTR(runPtr->stkPtr, &testStack[4]);
-    TEST_ASSERT_EQUAL_INT(testStack[19], 0x0100000);
-    TEST_ASSERT_EQUAL_INT(testStack[4], 0x04040404);
+void test_ThreadListRemoveMiddleItemWorks(void) {
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreateThread(&testFn, testStack2, 20,3, "test thread2");
+    StackElementTypeDef testStack3[20];
+    OS_CreateThread(&testFn, testStack3, 20,3, "test thread3");
+    StackElementTypeDef testStack4[20];
+    OS_CreateThread(&testFn, testStack4, 20,3, "test thread4");
+    StackElementTypeDef testStack5[20];
+    OS_CreateThread(&testFn, testStack5, 20,3, "test thread5");
+
+    OS_TCBTypeDef *toBeRemoved = OS_GetReadyThreadByIdentifier("test thread3");
+    OS_TCBTypeDef *toBeRemovedPrev = toBeRemoved->prev;
+    OS_TCBTypeDef *toBeRemovedNext = toBeRemoved->next;
+    OS_ReadyListRemove(toBeRemoved);
+
+    TEST_ASSERT_EQUAL_STRING("test thread1", readyHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread5", readyTailPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread4", toBeRemovedPrev->next->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread2", toBeRemovedNext->prev->identifier);
+
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->next);
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->prev);
+}
+
+void test_ThreadListRemoveLastItemWorks(void) {
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreateThread(&testFn, testStack2, 20,3, "test thread2");
+    StackElementTypeDef testStack3[20];
+    OS_CreateThread(&testFn, testStack3, 20,3, "test thread3");
+
+    OS_TCBTypeDef *toBeRemoved = OS_GetReadyThreadByIdentifier("test thread3");
+    OS_ReadyListRemove(toBeRemoved);
+
+    TEST_ASSERT_EQUAL_STRING("test thread1", readyHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread2", readyTailPtr->identifier);
+    TEST_ASSERT_EQUAL_PTR(NULL, readyTailPtr->next);
+
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->next);
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->prev);
+}
+
+void test_ThreadListRemoveOnlyItemWorks(void) {
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");
+
+    OS_TCBTypeDef *toBeRemoved = OS_GetReadyThreadByIdentifier("test thread1");
+    OS_ReadyListRemove(toBeRemoved);
+
+    TEST_ASSERT_EQUAL_PTR(NULL, readyHeadPtr);
+    TEST_ASSERT_EQUAL_PTR(NULL, readyTailPtr);
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->next);
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->prev);
+}
+
+/* ------------------------------------------ Thread list insert tests--------------------------------------------- */
+void test_ThreadListInsertFirstItemWorks(void) {
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");
+
+    OS_TCBTypeDef *toBeRemoved = OS_GetReadyThreadByIdentifier("test thread1");
+    OS_ReadyListRemove(toBeRemoved);
+
+    OS_BlockedListInsert(toBeRemoved);
+    TEST_ASSERT_EQUAL_STRING("test thread1", blockHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread1", blockTailPtr->identifier);
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->next);
+    TEST_ASSERT_EQUAL_PTR(NULL, toBeRemoved->prev);
+}
+
+void test_ThreadListInsertItemWorks(void) {
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreateThread(&testFn, testStack2, 20,3, "test thread2");
+
+    OS_TCBTypeDef *toBeRemoved1 = OS_GetReadyThreadByIdentifier("test thread1");
+    OS_ReadyListRemove(toBeRemoved1);
+    OS_TCBTypeDef *toBeRemoved2 = OS_GetReadyThreadByIdentifier("test thread2");
+    OS_ReadyListRemove(toBeRemoved2);
+
+    OS_BlockedListInsert(toBeRemoved1);
+    OS_BlockedListInsert(toBeRemoved2);
+    TEST_ASSERT_EQUAL_STRING("test thread1", blockHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread2", blockTailPtr->identifier);
+    TEST_ASSERT_EQUAL_PTR(blockTailPtr, blockHeadPtr->next);
+    TEST_ASSERT_EQUAL_PTR(blockHeadPtr, blockTailPtr->prev);
 }
