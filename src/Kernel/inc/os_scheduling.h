@@ -19,4 +19,6 @@ void OS_Suspend(void);
  */
 void OS_Sleep(uint32_t milliseconds);
 
+void OS_Schedule(void);
+
 #endif //MRTOS_OS_SCHEDULING_H

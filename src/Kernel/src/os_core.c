@@ -50,8 +50,6 @@ void OS_Launch(void) {
 void SysTickHandler() {
     static uint32_t tickCount = 0;  // The amount of SysTicks since last scheduler execution
     tickCount++;
-    // Will also trigger scheduler to run, if it unblocks periodic events
-    // TODO: implement in such way that it does not interfere with time slice scheduling as much
     OS_SysTickCallback();
     // Since the time slice for each thread might be longer than the SysTick period, check if enough SysTicks have
     // been observed since the last time scheduler was ran

@@ -2,47 +2,46 @@
 // Created by Aleksi on 12/02/2020.
 //
 
+
 #include "os_threads.h"
 #include "stddef.h"
 #include "memory.h"
-#include "assert.h" // TODO: Implement embedded friendly assert
+#include "assert.h"
 #include "os_core.h"
 
 
 /* ---------------------------------------- Private function declarations ----------------------------------------- */
 /**
  * @brief: Initializes a thread stack with default values to make it function correctly when scheduled for first time
- * @param tcb: Pointer to the last element of the stack that should be initialized
- * @param function: Pointer to the thread function
- * @return: None
+ * @param tcb: Pointer to the TCB element whose stack is to be initialized
+ * @param function: Pointer to the thread main function
  */
 static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *));
 
 /**
- * @brief: Helper function to map the initial values to the TCB struct
+ * @brief: Helper function that maps initial values to the TCB element
  */
 static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier);
 
 /***
- * @brief: Adds a TCB to the global linked list of threads, the new TCB will become runPtr if it has highest priority
- * @param tcb: Pointer to the TCB that is to be added
- * @return: None
+ * @brief: Adds the thread to the linked list of ready threads. The thread will become the runPtr if it has the highest priority so far.
+ * @param tcb: Pointer to the TCB element that is to be added
  */
 static void OS_AddThread(OS_TCBTypeDef *thread);
 
 /**
- * @brief: Inserts an element to the end of the provided linked list
- * @param head: Pointer to the first element of the linked list
- * @param tail: Pointer to the last element of the linked list
- * @param element: Pointer to the element that should be added
+ * @brief: Inserts an element to the end of the provided thread linked list
+ * @param head: Pointer to the pointer of the first element of the linked list
+ * @param tail: Pointer to the pointer of the last element of the linked list
+ * @param element: Pointer to the TCB element that should be added
  */
 static void OS_ThreadLinkedListInsert(OS_TCBTypeDef **head, OS_TCBTypeDef **tail, OS_TCBTypeDef *element);
 
 /**
- * @brief: Removes an element from the provided linked list
- * @param head: Pointer to the first element of the linked list
- * @param tail: Pointer to the last element of the linked list
- * @param element: Pointer to the element that should be removed
+ * @brief: Removes an element from the provided thread linked list
+ * @param head: Pointer to the pointer of the first element of the linked list
+ * @param tail: Pointer to the pointer of the last element of the linked list
+ * @param element: Pointer to the TCB element that should be removed
  */
 static void OS_ThreadLinkedListRemove(OS_TCBTypeDef **head, OS_TCBTypeDef **tail, OS_TCBTypeDef *element);
 
@@ -52,6 +51,8 @@ static OS_TCBTypeDef idleThreadAllocation = { 0 };
 static OS_TCBTypeDef threadAllocations[NUM_USER_THREADS] = { 0 };         // Pre-allocate memory for the TCBs
 static uint32_t threadsCreated = 0;                                              // Number of user threads created
 
+
+/* ----------------------------------------------- Global variables ----------------------------------------------- */
 OS_TCBTypeDef *idlePtr = NULL;   // Thread to be executed when nothing else is ready
 OS_TCBTypeDef *runPtr = NULL;    // Currently executing thread
 
@@ -65,7 +66,7 @@ OS_TCBTypeDef *blockHeadPtr = NULL;
 OS_TCBTypeDef *blockTailPtr = NULL;
 
 
-/* -------------------------------------------- Function definitions ---------------------------------------------- */
+/* ------------------------------------------- Test helper functions ---------------------------------------------- */
 /**
  * @brief: Resets the internal state of the module. Only compiled for tests.
  */
@@ -98,21 +99,6 @@ OS_TCBTypeDef *OS_GetReadyThreadByIdentifier(const char *identifier) {
 
     return NULL;
 }
-/**
- * @brief: Finds a blocked thread with the specified identifier. Returns NULL if none found. Only compiled for tests.
- */
-OS_TCBTypeDef *OS_GetBlockedThreadByIdentifier(const char *identifier) {
-    OS_TCBTypeDef *tmpPtr = blockHeadPtr;
-    while (tmpPtr != NULL) {
-        if (tmpPtr->identifier == identifier) {
-            return tmpPtr;
-        }
-
-        tmpPtr = tmpPtr->next;
-    }
-
-    return NULL;
-}
 
 /**
  * @brief: Finds a sleeping thread with the specified identifier. Returns NULL if none found. Only compiled for tests.
@@ -130,9 +116,36 @@ OS_TCBTypeDef *OS_GetSleepingThreadByIdentifier(const char *identifier) {
     return NULL;
 }
 
+/**
+ * @brief: Finds a blocked thread with the specified identifier. Returns NULL if none found. Only compiled for tests.
+ */
+OS_TCBTypeDef *OS_GetBlockedThreadByIdentifier(const char *identifier) {
+    OS_TCBTypeDef *tmpPtr = blockHeadPtr;
+    while (tmpPtr != NULL) {
+        if (tmpPtr->identifier == identifier) {
+            return tmpPtr;
+        }
+
+        tmpPtr = tmpPtr->next;
+    }
+
+    return NULL;
+}
+
+
+/* ----------------------------------------- Thread creation functions -------------------------------------------- */
+static void OS_AddThread(OS_TCBTypeDef *thread) {
+    // if runPtr or idlePtr not initialized, OS_Init has not been called before creating user threads like it should have
+    assert(runPtr != NULL && idlePtr != NULL);
+
+    OS_ReadyListInsert(thread);
+    if (thread->priority < runPtr->priority) {
+        runPtr = thread;
+    }
+}
 
 static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *)) {
-    // Make stkPtr point to last element
+    // make stkPtr point to last element
     thread->stkPtr = &thread->stkPtr[thread->stackSize-1];
 
     *thread->stkPtr-- = 0x0100000;            // PSR
@@ -153,16 +166,6 @@ static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *
     *thread->stkPtr = 0x04040404;             // R4
 }
 
-static void OS_AddThread(OS_TCBTypeDef *thread) {
-    // runPtr or idlePtr not initialized, OS_Init has not been called before creating user threads
-    assert(runPtr != NULL && idlePtr != NULL);
-
-    OS_ReadyListInsert(thread);
-    if (thread->priority < runPtr->priority) {
-        runPtr = thread;
-    }
-}
-
 static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier) {
     thread->stkPtr = stkPtr;
     thread->next = NULL;
@@ -170,7 +173,6 @@ static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef
     thread->stackSize = stackSize;
     thread->identifier = identifier;
 
-    // Validate the priority
     if (priority > THREAD_MIN_PRIORITY) {
         priority = THREAD_MIN_PRIORITY;
     } else if (priority < THREAD_MAX_PRIORITY) {
@@ -182,9 +184,9 @@ static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef
 }
 
 void OS_CreateThread(void (*function)(void *), StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier) {
-    // Make sure we are not trying to create too many threads
+    // make sure we are not trying to create too many threads
     assert(threadsCreated <= NUM_USER_THREADS);
-    // Make sure stack can fit at least the initial stack frame
+    // make sure stack can fit at least the initial stack frame
     assert(stackSize > 16);
 
     OS_TCBTypeDef *newThread = &threadAllocations[threadsCreated];
@@ -195,27 +197,29 @@ void OS_CreateThread(void (*function)(void *), StackElementTypeDef *stkPtr, uint
 }
 
 void OS_CreateIdleThread(void (*idleFunction)(void *), StackElementTypeDef *idleStkPtr, uint32_t stackSize) {
-    // Make sure stack can fit at least the initial stack frame
+    // make sure stack can fit at least the initial stack frame
     assert(stackSize > 16);
 
     OS_TCBTypeDef *idleThread = &idleThreadAllocation;
-    OS_MapInitialThreadValues(idleThread, idleStkPtr, stackSize, THREAD_MIN_PRIORITY + 1, "Idle thread");
+    OS_MapInitialThreadValues(idleThread, idleStkPtr, stackSize, THREAD_MIN_PRIORITY + 1, "idle thread");
     OS_InitializeTCBStack(idleThread, idleFunction);
     idlePtr = idleThread;
-    // Make the run pointer be the idle thread just in case no other threads are added
+    // make the run pointer be the idle thread just in case no other threads are added
     runPtr = idleThread;
 }
 
+
+/* ------------------------------------- Thread list manipulation functions --------------------------------------- */
 static void OS_ThreadLinkedListInsert(OS_TCBTypeDef **head, OS_TCBTypeDef **tail, OS_TCBTypeDef *element) {
     OS_TCBTypeDef *oldLast = *tail;
 
-    // If last is null, then this is the first element, set head pointer as well
-    if (oldLast == NULL) {
+    if (oldLast == NULL) {  // if this is the first element, modify head pointer as well
         *head = element;
     } else {
         oldLast->next = element;
         element->prev = oldLast;
     }
+
     *tail = element;
 }
 
@@ -225,7 +229,7 @@ static void OS_ThreadLinkedListRemove(OS_TCBTypeDef **head, OS_TCBTypeDef **tail
     element->next = NULL;
     element->prev = NULL;
 
-    // This was the only element
+    // thread was the only element
     if (previous == NULL && next == NULL) {
         *head = NULL;
         *tail = NULL;
@@ -234,17 +238,18 @@ static void OS_ThreadLinkedListRemove(OS_TCBTypeDef **head, OS_TCBTypeDef **tail
 
     if (next != NULL) {
         next->prev = previous;
-    } else {
+    } else {    // if thread was the last element
         *tail = previous;
     }
 
     if (previous != NULL) {
         previous->next = next;
-    } else {
+    } else {    // if thread was the first element
         *head = next;
     }
 }
 
+/* --------------------------- Exported function wrappers for thread list manipulation ---------------------------- */
 void OS_ReadyListInsert(OS_TCBTypeDef *thread) {
     uint32_t priority = OS_CriticalEnter();
     OS_ThreadLinkedListInsert(&readyHeadPtr, &readyTailPtr, thread);

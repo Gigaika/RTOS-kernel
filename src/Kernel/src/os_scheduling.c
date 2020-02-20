@@ -3,6 +3,8 @@
 //
 
 #include <assert.h>
+#include <stddef.h>
+#include <stdio.h>
 #include "os_scheduling.h"
 #include "os_core.h"
 #include "os_threads.h"
@@ -21,12 +23,36 @@ void OS_Sleep(uint32_t milliseconds) {
     OS_Suspend();
 }
 
-static void onIdleCondition(void) {
-    // TODO: Detect idle conditions, and run idle task in response
-}
-
 void OS_Schedule(void) {
     uint32_t pri = OS_CriticalEnter();
-    // TODO: Implement scheduler and scheduling algorithms
+    OS_TCBTypeDef *nextToRun = idlePtr;
+    OS_TCBTypeDef *tmpPtr = readyHeadPtr;
+
+    if (readyHeadPtr == NULL) {
+        runPtr = idlePtr;
+        OS_CriticalExit(pri);
+        return;
+    }
+
+    if (runPtr == idlePtr) {
+        tmpPtr = readyHeadPtr;
+    }
+
+    while(tmpPtr != NULL) {
+        if (tmpPtr->prev == runPtr) {
+            // To conserve round robin when runPtr has threads following it with same priority
+            if (tmpPtr->priority <= nextToRun->priority) {
+                nextToRun = tmpPtr;
+            }
+        } else {
+            if (tmpPtr->priority < nextToRun->priority) {
+                nextToRun = tmpPtr;
+            }
+        }
+
+        tmpPtr = tmpPtr->next;
+    }
+
+    runPtr = nextToRun;
     OS_CriticalExit(pri);
 }

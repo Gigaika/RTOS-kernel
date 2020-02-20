@@ -8,13 +8,11 @@
 #include "os_scheduling.h"
 #include "mock_bsp.h"
 
+#define EXPECT_SCHEDULER() BSP_TriggerPendSV_Expect()
+#define EXPECT_BLOCKED() BSP_TriggerPendSV_Expect()
+
 static void idleFn(void *ptr) {}
 static void testFn(void *ptr) {}
-
-#define EXPECT_SUSPEND() BSP_TriggerPendSV_Expect()
-#define EXPECT_SCHEDULER() EXPECT_SUSPEND()
-#define EXPECT_BLOCKED() EXPECT_SUSPEND()
-
 
 void setUp(void) {
     DisableInterrupts_Ignore();
@@ -106,6 +104,7 @@ void test_MutexSemaphoreUnblocks(void) {
     TEST_ASSERT_EQUAL_PTR(NULL, blockTailPtr);
     TEST_ASSERT_EQUAL_STRING("test thread2", readyTailPtr->identifier);
     TEST_ASSERT_EQUAL_STRING("test thread2", testSemaphore.owner->identifier);
+    TEST_ASSERT_EQUAL_PTR(NULL, OS_GetReadyThreadByIdentifier("test thread2")->blockPtr);
     TEST_ASSERT_EQUAL_INT(0, testSemaphore.value);
 }
 
@@ -237,7 +236,7 @@ void test_ChainedPriorityInheritanceWorks(void) {
     TEST_ASSERT_EQUAL_INT(3, OS_GetReadyThreadByIdentifier("test thread3")->priority);
 }
 
-void test_MultiSemaphorePriorityInheritanceWorks(void) {
+void test_MultiSemaphorePriorityInheritanceWorks_HighestLast(void) {
     OS_SemaphoreObjectTypeDef testSemaphore1;
     OS_InitSemaphore(&testSemaphore1, SEMAPHORE_MUTEX);
     OS_SemaphoreObjectTypeDef testSemaphore2;
@@ -270,13 +269,61 @@ void test_MultiSemaphorePriorityInheritanceWorks(void) {
     // thread 3 releases semaphore 2
     runPtr = OS_GetReadyThreadByIdentifier("test thread3");
     OS_Signal(&testSemaphore2);
-    // since thread 3 is still blocking a higher priority thread through another semaphore, priority should not be restored
+    // since thread 3 is still blocking an even higher priority thread through another semaphore, priority should be left as is
     TEST_ASSERT_EQUAL_INT(1, OS_GetReadyThreadByIdentifier("test thread3")->priority);
 
     // thread 3 releases semaphore 1
     runPtr = OS_GetReadyThreadByIdentifier("test thread3");
     EXPECT_SCHEDULER();
     OS_Signal(&testSemaphore1);
-    // semaphore 1 was the last semaphore thread 3 owned, its priority should now be restored
+    // semaphore 1 was the last semaphore thread 3 owned, its priority should now be restored fully
     TEST_ASSERT_EQUAL_INT(3, OS_GetReadyThreadByIdentifier("test thread3")->priority);
 }
+
+void test_MultiSemaphorePriorityInheritanceWorks_HighestFirst(void) {
+    OS_SemaphoreObjectTypeDef testSemaphore1;
+    OS_InitSemaphore(&testSemaphore1, SEMAPHORE_MUTEX);
+    OS_SemaphoreObjectTypeDef testSemaphore2;
+    OS_InitSemaphore(&testSemaphore2, SEMAPHORE_MUTEX);
+
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,1, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreateThread(&testFn, testStack2, 20, 2, "test thread2");
+    StackElementTypeDef testStack3[20];
+    OS_CreateThread(&testFn, testStack3, 20, 3, "test thread3");
+
+    // thread 3 gets control of both semaphores
+    runPtr = OS_GetReadyThreadByIdentifier("test thread3");
+    OS_Wait(&testSemaphore1);
+    OS_Wait(&testSemaphore2);
+
+    // thread 2 blocks on semaphore 2
+    runPtr = OS_GetReadyThreadByIdentifier("test thread2");
+    EXPECT_BLOCKED();
+    OS_Wait(&testSemaphore2);
+    TEST_ASSERT_EQUAL_INT(2, OS_GetReadyThreadByIdentifier("test thread3")->priority);
+
+    // thread 1 blocks on semaphore 1
+    runPtr = OS_GetReadyThreadByIdentifier("test thread1");
+    EXPECT_BLOCKED();
+    OS_Wait(&testSemaphore1);
+    TEST_ASSERT_EQUAL_INT(1, OS_GetReadyThreadByIdentifier("test thread3")->priority);
+
+    // thread 3 releases semaphore 1
+    runPtr = OS_GetReadyThreadByIdentifier("test thread3");
+    EXPECT_SCHEDULER();
+    OS_Signal(&testSemaphore1);
+    // since we released the semaphore through which thread 3 was blocking the highest priority thread,
+    // we should move on to the next highest priority that was granted to thread 3
+    TEST_ASSERT_EQUAL_INT(2, OS_GetReadyThreadByIdentifier("test thread3")->priority);
+
+    // thread 3 releases semaphore 2
+    runPtr = OS_GetReadyThreadByIdentifier("test thread3");
+    EXPECT_SCHEDULER();
+    OS_Signal(&testSemaphore2);
+    // semaphore 2 was the last semaphore thread 3 owned, its priority should now be fully restored
+    TEST_ASSERT_EQUAL_INT(3, OS_GetReadyThreadByIdentifier("test thread3")->priority);
+}
+
+// TODO: test case where the next highest priority in multisemaphore priority inheritance is the same as the one before
