@@ -34,10 +34,6 @@ void OS_Schedule(void) {
         return;
     }
 
-    if (runPtr == idlePtr) {
-        tmpPtr = readyHeadPtr;
-    }
-
     while(tmpPtr != NULL) {
         if (tmpPtr->prev == runPtr) {
             // To conserve round robin when runPtr has threads following it with same priority
