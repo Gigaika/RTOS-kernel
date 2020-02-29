@@ -172,6 +172,7 @@ void test_MutexSemaphoreUnblocksLongestWaiting(void) {
     TEST_ASSERT_EQUAL_STRING("test thread3", blockHeadPtr->identifier);
 }
 
+/* --------------------------------------- Mutex priority inheritance tests---------------------------------------- */
 void test_PriorityInheritanceWorks(void) {
     OS_SemaphoreObjectTypeDef testSemaphore;
     OS_InitSemaphore(&testSemaphore, SEMAPHORE_MUTEX);
@@ -325,5 +326,3 @@ void test_MultiSemaphorePriorityInheritanceWorks_HighestFirst(void) {
     // semaphore 2 was the last semaphore thread 3 owned, its priority should now be fully restored
     TEST_ASSERT_EQUAL_INT(3, OS_GetReadyThreadByIdentifier("test thread3")->priority);
 }
-
-// TODO: test case where the next highest priority in multisemaphore priority inheritance is the same as the one before

@@ -26,7 +26,6 @@ void tearDown(void) {
     OS_ResetState();
 }
 
-/* -------------------------------------------- Thread creation tests---------------------------------------------- */
 void test_ThreadFinderFunctionWorks(void) {
     StackElementTypeDef testStack[20];
     OS_CreateThread(&testFn, testStack, 20,3, "test thread");
@@ -43,6 +42,7 @@ void test_IdleThreadExistsAfterInit(void) {
     TEST_ASSERT_TRUE(runPtr != NULL);
 }
 
+/* -------------------------------------------- Thread creation tests---------------------------------------------- */
 void test_ThreadsCanBeCreated(void) {
     StackElementTypeDef testStack[20];
     OS_CreateThread(&testFn, testStack, 20,3, "test thread");

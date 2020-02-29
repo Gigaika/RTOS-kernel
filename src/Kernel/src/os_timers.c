@@ -6,6 +6,7 @@
 #include "stddef.h"
 #include <assert.h>
 
+
 /* ---------------------------------------- Private function declarations ----------------------------------------- */
 static int32_t initializePeriodicEvent(uint32_t periodMillis, void (*callback)(void), OS_SemaphoreObjectTypeDef *semaphore);
 static void findAndReset(uint32_t identifier);

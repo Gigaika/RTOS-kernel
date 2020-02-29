@@ -185,7 +185,7 @@ static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef
 
 void OS_CreateThread(void (*function)(void *), StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier) {
     // make sure we are not trying to create too many threads
-    assert(threadsCreated <= NUM_USER_THREADS);
+    assert(threadsCreated < NUM_USER_THREADS);
     // make sure stack can fit at least the initial stack frame
     assert(stackSize > 16);
 
@@ -211,6 +211,8 @@ void OS_CreateIdleThread(void (*idleFunction)(void *), StackElementTypeDef *idle
 
 /* ------------------------------------- Thread list manipulation functions --------------------------------------- */
 static void OS_ThreadLinkedListInsert(OS_TCBTypeDef **head, OS_TCBTypeDef **tail, OS_TCBTypeDef *element) {
+    assert(element != NULL);
+
     OS_TCBTypeDef *oldLast = *tail;
 
     if (oldLast == NULL) {  // if this is the first element, modify head pointer as well
@@ -224,6 +226,8 @@ static void OS_ThreadLinkedListInsert(OS_TCBTypeDef **head, OS_TCBTypeDef **tail
 }
 
 static void OS_ThreadLinkedListRemove(OS_TCBTypeDef **head, OS_TCBTypeDef **tail, OS_TCBTypeDef *element) {
+    assert(element != NULL);
+
     OS_TCBTypeDef *previous = element->prev;
     OS_TCBTypeDef *next = element->next;
     element->next = NULL;

@@ -2,9 +2,7 @@
 // Created by Aleksi on 12/02/2020.
 //
 
-#include <assert.h>
 #include <stddef.h>
-#include <stdio.h>
 #include "os_scheduling.h"
 #include "os_core.h"
 #include "os_threads.h"

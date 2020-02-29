@@ -67,7 +67,7 @@ static int32_t unblockThread(OS_SemaphoreObjectTypeDef *semaphoreObject) {
     OS_TCBTypeDef *tmpPtr = blockHeadPtr;
     OS_TCBTypeDef *highestPtr = NULL;
 
-    // Iterate through the linked list of blocked threads, and find the lowest priority thread blocked by the same semaphore
+    // Iterate through the list of blocked threads, and find the highest priority thread blocked by the same semaphore
     while (tmpPtr != NULL) {
         if (tmpPtr->blockPtr == semaphoreObject) {
             if (highestPtr == NULL) {
@@ -99,6 +99,7 @@ static void removeDynamicPriorityFromOwner(OS_SemaphoreObjectTypeDef *semaphoreO
         return;
     }
 
+    // Someone else has granted a higher priority than this semaphore, do nothing
     if (semaphoreObject->owner->priority < semaphoreObject->priorityLevelGranted) {
         semaphoreObject->priorityHasBeenGranted = 0;
         semaphoreObject->priorityLevelGranted = 0;

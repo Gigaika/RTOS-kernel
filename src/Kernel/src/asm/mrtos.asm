@@ -15,7 +15,8 @@ PendSV_Handler:
     LDR SP, [R1]        ; Load the stack pointer of the current thread to the SP register
     POP {R4, R11}       ; Pop the R4-R11 registers which were pushed when the thread was previously switched from
     CPSIE               ; Enable interrupts
-    BX  LR              ; Return from handler
+    BX  LR              ; Return from handler   // TODO: Initialize the initial stackframe properly so that the LR has the special ISR value
+                                                // Or launch through a regular fn call instead of triggering pendSV
 
 DisableInterrupts:
     CPSID
