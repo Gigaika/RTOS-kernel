@@ -46,7 +46,7 @@ OS_TCBTypeDef *OS_GetSleepingThreadByIdentifier(const char *identifier);
  */
 void OS_CreateThread(void (*function)(void *), StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier);
 
-void OS_CreatePeriodicThread(void (*function)(void *), uint32_t priority, StackElementTypeDef *stackPtr, uint32_t periodMillis);
+void OS_CreatePeriodicThread(void (*function)(void *), StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, uint32_t periodMillis, const char *identifier);
 
 /***
  * @brief: Creates the idle thread from the parameters. Only called once during the initialization sequence.+

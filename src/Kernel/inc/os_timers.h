@@ -9,6 +9,10 @@
 #include "stdint.h"
 #include "os_semaphore.h"
 
+#if TEST
+void OS_ResetTimers();
+#endif
+
 typedef struct OS_PeriodicEventStruct {
     uint32_t used;
     OS_SemaphoreObjectTypeDef *semaphore;
@@ -27,7 +31,7 @@ extern OS_PeriodicEventTypeDef periodicEvents[NUM_SOFT_TIMERS];
  * @param callback: The function that should be called. Will be called from an established critical section.
  * @return: An unique identifier that can be used to disable the timer later
  */
-int32_t OS_CreateSoftwareTimer(uint32_t periodMillis, void (*callback)(void));
+int32_t OS_CreateSoftwareTimer(void (*callback)(void), uint32_t periodMillis);
 
 /***
  * @brief: Destroys the software timer corresponding to the identifier
@@ -43,7 +47,7 @@ void OS_DestroySoftwareTimer(uint32_t identifier);
  * @param semaphore: The semaphore that should be signalled
  * @return: An unique identifier that can be used to disable the timer late
  */
-int32_t OS_StartPeriodicSignal(uint32_t periodMillis, OS_SemaphoreObjectTypeDef *semaphore);
+int32_t OS_StartPeriodicSignal(OS_SemaphoreObjectTypeDef *semaphore, uint32_t periodMillis);
 
 /***
  * @brief: Disables signalling a specific semaphore, that corresponds to the identifier

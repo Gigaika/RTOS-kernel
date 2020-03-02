@@ -31,6 +31,7 @@ struct OS_TCBStruct {
 /* -------------------------------------------- Test helper functions -------------------------------------------- */
 #if TEST
 void OS_ResetState(void);
+void SysTickHandler(void);
 #endif
 
 

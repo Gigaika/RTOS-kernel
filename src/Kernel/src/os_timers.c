@@ -4,6 +4,7 @@
 
 #include "os_timers.h"
 #include "stddef.h"
+#include "memory.h"
 #include <assert.h>
 
 
@@ -21,7 +22,15 @@ static uint32_t timersActive = 0;
 
 
 /* -------------------------------------------- Function definitions ---------------------------------------------- */
-int32_t OS_CreateSoftwareTimer(uint32_t periodMillis, void (*callback)(void)) {
+/**
+ * @brief: Resets the internal state of the module. Only compiled for tests.
+ */
+void OS_ResetTimers(void) {
+    memset(&periodicEvents, 0, sizeof(periodicEvents));
+    timersActive = 0;
+}
+
+int32_t OS_CreateSoftwareTimer(void (*callback)(void), uint32_t periodMillis) {
     return initializePeriodicEvent(periodMillis, callback, NULL);
 }
 
@@ -29,7 +38,7 @@ void OS_DestroySoftwareTimer(uint32_t identifier) {
     findAndReset(identifier);
 }
 
-int32_t OS_StartPeriodicSignal(uint32_t periodMillis, OS_SemaphoreObjectTypeDef *semaphore) {
+int32_t OS_StartPeriodicSignal(OS_SemaphoreObjectTypeDef *semaphore, uint32_t periodMillis) {
     return initializePeriodicEvent(periodMillis, NULL, semaphore);
 }
 

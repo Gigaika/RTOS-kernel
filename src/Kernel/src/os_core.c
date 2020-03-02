@@ -22,6 +22,7 @@ static void OS_SysTickCallback(void);
  */
 void OS_ResetState() {
     OS_ResetThreads();
+    OS_ResetTimers();
 }
 
 /* --------------------------------------------- OS Startup functions --------------------------------------------- */
@@ -65,9 +66,11 @@ static void OS_SysTickCallback() {
     // Iterate through the complete thread list and decrement all nonzero sleep counters by the period of the SysTick
     OS_TCBTypeDef *tmpPtr = sleepHeadPtr;
     while (tmpPtr != NULL) {
-         if (tmpPtr->sleep <= SYS_TICK_PERIOD_MILLIS) {   // If value goes to zero (or rolls over), make thread ready
+         // If value would go to zero (or roll over), make thread ready
+         if (tmpPtr->sleep <= SYS_TICK_PERIOD_MILLIS) {
              OS_SleepListRemove(tmpPtr);
              OS_ReadyListInsert(tmpPtr);
+             tmpPtr->sleep = 0;
          } else {
              tmpPtr->sleep -= SYS_TICK_PERIOD_MILLIS;
          }
