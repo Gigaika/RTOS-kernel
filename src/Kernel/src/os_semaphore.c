@@ -157,7 +157,7 @@ void OS_Signal(OS_SemaphoreObjectTypeDef *semaphoreObject) {
 
     // Currently running thread will suspend if the unblocked task was higher priority
     if (shouldSuspend == 1) {
-        OS_Suspend();
+        OS_Suspend(OS_SUSPEND_UNBLOCK);
     }
 }
 
@@ -185,7 +185,7 @@ void OS_Wait(OS_SemaphoreObjectTypeDef *semaphoreObject) {
         }
 
         OS_CriticalExit(priority);
-        OS_Suspend();
+        OS_Suspend(OS_SUSPEND_BLOCK);
     } else {
         semaphoreSetOwner(semaphoreObject, runPtr);
         OS_CriticalExit(priority);

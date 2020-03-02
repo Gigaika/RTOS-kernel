@@ -14,10 +14,7 @@
 static void idleFn(void *ptr) {}
 static void testFn(void *ptr) {}
 
-uint32_t called = 0;
-
 static void pendSVStub(int NumCalls) {
-    called++;
     OS_Schedule();
 }
 
@@ -27,6 +24,7 @@ void setUp(void) {
     BSP_HardwareInit_Ignore();
     OS_CriticalEnter_IgnoreAndReturn(1);
     OS_CriticalExit_Ignore();
+    BSP_TriggerPendSV_AddCallback(&pendSVStub);
 
     StackElementTypeDef idleStack[20];
     OS_Init(&idleFn, idleStack, 20);
@@ -36,9 +34,7 @@ void tearDown(void) {
     OS_ResetState();
 }
 
-void test_periodicThreadGetsScheduled(void) {
-    BSP_TriggerPendSV_AddCallback(&pendSVStub);
-
+void test_PeriodicSignallingWorks(void) {
     StackElementTypeDef testStack1[20];
     OS_CreateThread(&testFn, testStack1, 20, 3, "test thread1");
     StackElementTypeDef testStack2[20];
@@ -46,7 +42,6 @@ void test_periodicThreadGetsScheduled(void) {
 
     OS_SemaphoreObjectTypeDef testSemaphore1;
     OS_InitSemaphore(&testSemaphore1, SEMAPHORE_FLAG);
-
     OS_StartPeriodicSignal(&testSemaphore1, 10*SYS_TICK_PERIOD_MILLIS);
 
     runPtr = OS_GetReadyThreadByIdentifier("periodic thread1");
@@ -55,7 +50,7 @@ void test_periodicThreadGetsScheduled(void) {
     OS_Wait(&testSemaphore1);
 
     // Scheduler will run once for each time slice, create expect statements for each timeslice consumed in this test
-    for (int i = 0; i < (10 * SYS_TICK_PERIOD_MILLIS) / THREAD_TIME_SLICE_MILLIS; i++) {
+    for (int i = 0; i < (9 * SYS_TICK_PERIOD_MILLIS) / THREAD_TIME_SLICE_MILLIS; i++) {
         EXPECT_SCHEDULER();
     }
 
@@ -67,7 +62,7 @@ void test_periodicThreadGetsScheduled(void) {
 
     // Periodic thread should now be ready to run, and it should be scheduled regardless of timeslice, as it is higher priority than runPtr
     EXPECT_SCHEDULER();
+    EXPECT_SCHEDULER();
     SysTickHandler();
     TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("periodic thread1"), runPtr);
 }
-

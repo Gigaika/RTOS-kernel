@@ -17,8 +17,8 @@ typedef struct OS_PeriodicEventStruct {
     uint32_t used;
     OS_SemaphoreObjectTypeDef *semaphore;
     void (*callback)(void);
+    uint32_t basePeriod;
     uint32_t period;
-    uint32_t tickCount;
 } OS_PeriodicEventTypeDef;
 
 // Global timers

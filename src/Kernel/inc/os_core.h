@@ -25,6 +25,9 @@ struct OS_TCBStruct {
     uint32_t priority;
     OS_SemaphoreObjectTypeDef *blockPtr;
     uint32_t sleep;
+    uint32_t basePeriod;
+    uint32_t period;
+    uint32_t hasFullyRan;
 };
 
 

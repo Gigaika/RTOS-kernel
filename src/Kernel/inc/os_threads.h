@@ -23,6 +23,8 @@ extern OS_TCBTypeDef *sleepTailPtr;
 extern OS_TCBTypeDef *blockHeadPtr;
 extern OS_TCBTypeDef *blockTailPtr;
 
+extern OS_TCBTypeDef **periodicListPtr;
+
 
 /* -------------------------------------------- Test helper functions -------------------------------------------- */
 #if TEST

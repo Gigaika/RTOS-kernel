@@ -13,7 +13,7 @@
  * @brief: Gets called from the SysTick interrupt. Should handle all the housekeeping tasks that are synchronized
  *         with the SysTick timer (thread sleep handling, periodic OS timer handling)
  */
-static void OS_SysTickCallback(void);
+static uint32_t OS_SysTickCallback(void);
 
 
 /* -------------------------------------------- Function definitions ---------------------------------------------- */
@@ -51,17 +51,20 @@ void OS_Launch(void) {
 void SysTickHandler() {
     static uint32_t tickCount = 0;  // The amount of SysTicks since last scheduler execution
     tickCount++;
-    OS_SysTickCallback();
+
+    uint32_t shouldRunScheduler = 0;
+    shouldRunScheduler = OS_SysTickCallback();
     // Since the time slice for each thread might be longer than the SysTick period, check if enough SysTicks have
     // been observed since the last time scheduler was ran
-    if (tickCount * SYS_TICK_PERIOD_MILLIS >= THREAD_TIME_SLICE_MILLIS) {
+    if (tickCount * SYS_TICK_PERIOD_MILLIS >= THREAD_TIME_SLICE_MILLIS || shouldRunScheduler) {
         BSP_TriggerPendSV();
         tickCount = 0;
     }
 }
 
-static void OS_SysTickCallback() {
+static uint32_t OS_SysTickCallback() {
     uint32_t priority = OS_CriticalEnter();
+    uint32_t shouldRunScheduler = 0;
 
     // Iterate through the complete thread list and decrement all nonzero sleep counters by the period of the SysTick
     OS_TCBTypeDef *tmpPtr = sleepHeadPtr;
@@ -71,11 +74,43 @@ static void OS_SysTickCallback() {
              OS_SleepListRemove(tmpPtr);
              OS_ReadyListInsert(tmpPtr);
              tmpPtr->sleep = 0;
+             // After scheduler has been flagged to run no reason the check for it anymore
+             if (!shouldRunScheduler) {
+                 // If new ready to run thread higher priority then runPtr, schedule it to run afterwards
+                 if (tmpPtr->priority < runPtr->priority) {
+                     shouldRunScheduler = 1;
+                 }
+             }
          } else {
              tmpPtr->sleep -= SYS_TICK_PERIOD_MILLIS;
          }
 
         tmpPtr = tmpPtr->next;
+    }
+
+    // Iterate through the periodic thread list and decrement all period counters
+    OS_TCBTypeDef **listPtr = periodicListPtr;
+    while (*listPtr != NULL) {
+        // If value would go to zero (or roll over), make thread ready
+        if ((*listPtr)->period <= SYS_TICK_PERIOD_MILLIS) {
+            (*listPtr)->period = (*listPtr)->basePeriod;
+            // Check to avoid double insertion to ready list, in case thread is still executing (in ready list)
+            if ((*listPtr)->hasFullyRan) {
+                OS_ReadyListInsert((*listPtr));
+                (*listPtr)->hasFullyRan = 0;
+                // After scheduler has been flagged to run no reason the check for it anymore
+                if (!shouldRunScheduler) {
+                    // If new ready to run thread higher priority then runPtr, schedule it to run afterwards
+                    if ((*listPtr)->priority < runPtr->priority) {
+                        shouldRunScheduler = 1;
+                    }
+                }
+            }
+        } else {
+            (*listPtr)->period -= SYS_TICK_PERIOD_MILLIS;
+        }
+
+        listPtr++;
     }
 
     // Iterate through the software timer array
@@ -88,16 +123,19 @@ static void OS_SysTickCallback() {
         }
 
         // If the time since last trigger of the timer is bigger than the period, trigger it now and reset the tick counter
-        if (++current->tickCount * SYS_TICK_PERIOD_MILLIS >= current->period) {
+        if (current->period <= SYS_TICK_PERIOD_MILLIS) {
             if (current->callback != NULL) {
                 (*current->callback)();
             } else if (current->semaphore != NULL) {
+                // No need to flag scheduler to run as signal will end up triggering PendSV through OS_Suspend if needed
                 OS_Signal(current->semaphore);
             }
-
-            current->tickCount = 0;
+            current->period = current->basePeriod;
+        } else {
+            current->period -= SYS_TICK_PERIOD_MILLIS;
         }
     }
 
     OS_CriticalExit(priority);
+    return shouldRunScheduler;
 }

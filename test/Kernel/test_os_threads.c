@@ -8,8 +8,15 @@
 #include "os_scheduling.h"
 #include "mock_bsp.h"
 
+#define EXPECT_SCHEDULER() BSP_TriggerPendSV_Expect()
+#define EXPECT_BLOCKED() BSP_TriggerPendSV_Expect()
+
 static void idleFn(void *ptr) {}
 static void testFn(void *ptr) {}
+
+static void pendSVStub(int NumCalls) {
+    OS_Schedule();
+}
 
 void setUp(void) {
     DisableInterrupts_Ignore();
@@ -182,4 +189,39 @@ void test_ThreadListInsertItemWorks(void) {
     TEST_ASSERT_EQUAL_STRING("test thread2", blockTailPtr->identifier);
     TEST_ASSERT_EQUAL_PTR(blockTailPtr, blockHeadPtr->next);
     TEST_ASSERT_EQUAL_PTR(blockHeadPtr, blockTailPtr->prev);
+}
+
+/* ------------------------------------------ Periodic thread tests--------------------------------------------- */
+void test_PeriodicThreadCreateWorks(void) {
+    StackElementTypeDef testStack1[20];
+    OS_CreatePeriodicThread(&testFn, testStack1, 20,3, 500, "periodic thread1");
+
+    TEST_ASSERT_EQUAL_PTR(NULL, readyTailPtr);
+    TEST_ASSERT_TRUE(*periodicListPtr != NULL);
+    TEST_ASSERT_EQUAL_STRING("periodic thread1", (*periodicListPtr)->identifier);
+}
+
+void test_periodicThreadGetsScheduled(void) {
+    BSP_TriggerPendSV_AddCallback(&pendSVStub);
+
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20, 3, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreatePeriodicThread(&testFn, testStack2, 20, 1, 10*SYS_TICK_PERIOD_MILLIS, "periodic thread1");
+
+    // Scheduler will run once for each time slice, create expect statements for each timeslice consumed in this test
+    for (int i = 0; i < (9 * SYS_TICK_PERIOD_MILLIS) / THREAD_TIME_SLICE_MILLIS; i++) {
+        EXPECT_SCHEDULER();
+    }
+
+    // Trigger the systick handler until we are 1 systick away from the periodic thread being ready to run
+    for (int i = 0; i < 9; i++) {
+        SysTickHandler();
+        TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("test thread1"), runPtr);
+    }
+
+    // Periodic thread should now be ready to run, and it should be scheduled regardless of timeslice, as it is higher priority than runPtr
+    EXPECT_SCHEDULER();
+    SysTickHandler();
+    TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("periodic thread1"), runPtr);
 }

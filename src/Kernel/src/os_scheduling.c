@@ -8,7 +8,15 @@
 #include "os_threads.h"
 #include "bsp.h"
 
-void OS_Suspend(void) {
+void OS_Suspend(OS_Suspend_Cause cause) {
+    // When a periodic thread has ran fully and given up control, it should be removed from ready list to prevent it from running again
+    if (cause == OS_SUSPEND_RELINQUISH) {
+        if (runPtr->basePeriod != 0) {
+            runPtr->hasFullyRan = 1;
+            OS_ReadyListRemove(runPtr);
+        }
+    }
+
     BSP_TriggerPendSV();
 }
 
@@ -18,7 +26,7 @@ void OS_Sleep(uint32_t milliseconds) {
     OS_ReadyListRemove(runPtr);
     OS_SleepListInsert(runPtr);
     OS_CriticalExit(priority);
-    OS_Suspend();
+    OS_Suspend(OS_SUSPEND_SLEEP);
 }
 
 void OS_Schedule(void) {

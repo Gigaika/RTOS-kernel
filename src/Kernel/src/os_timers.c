@@ -50,9 +50,9 @@ static void findAndReset(uint32_t identifier) {
     OS_PeriodicEventTypeDef *target = &periodicEvents[identifier];
     target->used = 0;
     target->period = 0;
+    target->basePeriod = 0;
     target->semaphore = NULL;
     target->callback = NULL;
-    target->tickCount = 0;
     timersActive--;
 }
 
@@ -63,9 +63,9 @@ static int32_t initializePeriodicEvent(uint32_t periodMillis, void (*callback)(v
             OS_PeriodicEventTypeDef *new = &periodicEvents[i];
             new->used = 1;
             new->period = periodMillis;
+            new->basePeriod = periodMillis;
             new->semaphore = semaphore;
             new->callback = callback;
-            new->tickCount = 0;
             timersActive++;
             return i;
         }
