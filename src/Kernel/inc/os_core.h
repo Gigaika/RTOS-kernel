@@ -9,7 +9,6 @@
 #include "mrtos_config.h"
 #include "stdint.h"
 
-
 /* --------------------------------------- Type definitions and structures --------------------------------------- */
 // Forward definition as OS_SemaphoreObjectTypeDef depends on OS_TCBTypeDef, and vice versa
 typedef struct OS_SemaphoreStruct OS_SemaphoreObjectTypeDef;
@@ -71,6 +70,7 @@ void EnableInterrupts(void);    // Assembly
 void DisableInterrupts(void);   // Assembly
 
 /* --------------------------------------------- Utility functions ---------------------------------------------- */
+uint64_t OS_GetSysTickCount(void);
 
 
 #endif //MRTOS_OS_CORE_H

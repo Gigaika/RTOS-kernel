@@ -5,8 +5,12 @@
 #include "os_core.h"
 #include "stddef.h"
 #include "os_threads.h"
-#include "os_timers.h"
 #include "bsp.h"
+
+
+/* --------------------------------------------- Private variables ----------------------------------------------- */
+static uint64_t sysTickCount = 0;  // The amount of SysTicks since last scheduler execution
+
 
 /* ---------------------------------------- Private function declarations ----------------------------------------- */
 /***
@@ -22,8 +26,8 @@ static uint32_t OS_SysTickCallback(void);
  */
 void OS_ResetState() {
     OS_ResetThreads();
-    OS_ResetTimers();
 }
+
 
 /* --------------------------------------------- OS Startup functions --------------------------------------------- */
 void OS_Init(void (*idleFunction)(void *), StackElementTypeDef *idleStackPtr, uint32_t idleStackSize) {
@@ -44,21 +48,26 @@ void OS_Launch(void) {
 }
 
 /* ----------------------------------------- SysTick handler and callback ----------------------------------------- */
+uint64_t OS_GetSysTickCount(void) {
+    return sysTickCount;
+}
+
 /***
  * @brief: Handler for the SysTick interrupt, is responsible for triggering scheduler (PendSV) after a thread has
  *         used its time slice. Also used for deriving software timers and implementing thread sleeping.
  */
 void SysTickHandler() {
-    static uint32_t tickCount = 0;  // The amount of SysTicks since last scheduler execution
-    tickCount++;
+    static uint32_t currentTickCount = 0;  // The amount of SysTicks since last scheduler execution
+    currentTickCount++;
+    sysTickCount++;
 
     uint32_t shouldRunScheduler = 0;
     shouldRunScheduler = OS_SysTickCallback();
     // Since the time slice for each thread might be longer than the SysTick period, check if enough SysTicks have
     // been observed since the last time scheduler was ran
-    if (tickCount * SYS_TICK_PERIOD_MILLIS >= THREAD_TIME_SLICE_MILLIS || shouldRunScheduler) {
+    if (currentTickCount * SYS_TICK_PERIOD_MILLIS >= THREAD_TIME_SLICE_MILLIS || shouldRunScheduler) {
         BSP_TriggerPendSV();
-        tickCount = 0;
+        currentTickCount = 0;
     }
 }
 
@@ -111,29 +120,6 @@ static uint32_t OS_SysTickCallback() {
         }
 
         listPtr++;
-    }
-
-    // Iterate through the software timer array
-    OS_PeriodicEventTypeDef *current;
-    for (int i = 0; i < NUM_SOFT_TIMERS; i++) {
-        current = &periodicEvents[i];
-
-        if (!(current->used)) {
-            continue;
-        }
-
-        // If the time since last trigger of the timer is bigger than the period, trigger it now and reset the tick counter
-        if (current->period <= SYS_TICK_PERIOD_MILLIS) {
-            if (current->callback != NULL) {
-                (*current->callback)();
-            } else if (current->semaphore != NULL) {
-                // No need to flag scheduler to run as signal will end up triggering PendSV through OS_Suspend if needed
-                OS_Signal(current->semaphore);
-            }
-            current->period = current->basePeriod;
-        } else {
-            current->period -= SYS_TICK_PERIOD_MILLIS;
-        }
     }
 
     OS_CriticalExit(priority);

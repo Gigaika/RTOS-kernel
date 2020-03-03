@@ -3,7 +3,6 @@
 #include "mrtos_config.h"
 #include "os_core.h"
 #include "os_threads.h"
-#include "os_timers.h"
 #include "os_semaphore.h"
 #include "os_scheduling.h"
 #include "mock_bsp.h"
