@@ -8,12 +8,10 @@ target_sources(MRtos_lib
             inc/os_semaphore.h
             inc/os_scheduling.h
             inc/os_threads.h
-            inc/os_timers.h
             inc/os_buffers.h
             src/os_core.c
             src/os_scheduling.c
             src/os_semaphore.c
             src/os_threads.c
-            src/os_timers.c
             src/os_buffers.c
         )
