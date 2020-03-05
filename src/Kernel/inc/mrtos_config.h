@@ -18,7 +18,6 @@
 /* ---------------------- System configuration ---------------------------*/
 #define SYSCLOCK_FREQUENCY 80
 #define SYS_TICK_PERIOD_MILLIS 1
-#define NUM_SOFT_TIMERS 8
 
 /* --------------------- Configuration typedefs ----------------------------*/
 typedef uint32_t StackElementTypeDef;       // 32-bit wide stack

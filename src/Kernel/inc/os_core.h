@@ -9,8 +9,13 @@
 #include "mrtos_config.h"
 #include "stdint.h"
 
-
 /* --------------------------------------- Type definitions and structures --------------------------------------- */
+typedef enum {
+    READY,
+    BLOCKED,
+    ASLEEP,
+    INACTIVE
+} OS_StateTypeDef;
 // Forward definition as OS_SemaphoreObjectTypeDef depends on OS_TCBTypeDef, and vice versa
 typedef struct OS_SemaphoreStruct OS_SemaphoreObjectTypeDef;
 
@@ -25,12 +30,17 @@ struct OS_TCBStruct {
     uint32_t priority;
     OS_SemaphoreObjectTypeDef *blockPtr;
     uint32_t sleep;
+    uint32_t basePeriod;
+    uint32_t period;
+    uint32_t hasFullyRan;
+    OS_StateTypeDef state;
 };
 
 
 /* -------------------------------------------- Test helper functions -------------------------------------------- */
 #if TEST
 void OS_ResetState(void);
+void SysTickHandler(void);
 #endif
 
 
@@ -67,6 +77,7 @@ void EnableInterrupts(void);    // Assembly
 void DisableInterrupts(void);   // Assembly
 
 /* --------------------------------------------- Utility functions ---------------------------------------------- */
+uint64_t OS_GetSysTickCount(void);
 
 
 #endif //MRTOS_OS_CORE_H

@@ -7,10 +7,17 @@
 
 #include "stdint.h"
 
+typedef enum {
+    OS_SUSPEND_BLOCK       = 0x0,
+    OS_SUSPEND_UNBLOCK     = 0x1,
+    OS_SUSPEND_SLEEP       = 0x2,
+    OS_SUSPEND_RELINQUISH  = 0x3
+} OS_Suspend_Cause;
+
 /**
  * @brief: Suspends the current task and forces the scheduler to run.
  */
-void OS_Suspend(void);
+void OS_Suspend(OS_Suspend_Cause cause);
 
 /**
  * @brief: Updates the sleep field of the currently executing task, and suspends the current thread afterwards
