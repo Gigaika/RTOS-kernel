@@ -2,6 +2,8 @@
 // Created by Aleksi on 12/02/2020.
 //
 
+
+#include <assert.h>
 #include "os_core.h"
 #include "stddef.h"
 #include "os_threads.h"
@@ -75,34 +77,38 @@ static uint32_t OS_SysTickCallback() {
     uint32_t priority = OS_CriticalEnter();
     uint32_t shouldRunScheduler = 0;
 
-    // Iterate through the complete thread list and decrement all nonzero sleep counters by the period of the SysTick
+    // Iterate through the complete thread list and decrement all sleep counters by the period of the SysTick
     OS_TCBTypeDef *tmpPtr = sleepHeadPtr;
+    OS_TCBTypeDef *tmpPtr2;
     while (tmpPtr != NULL) {
-         // If value would go to zero (or roll over), make thread ready
-         if (tmpPtr->sleep <= SYS_TICK_PERIOD_MILLIS) {
-             OS_SleepListRemove(tmpPtr);
-             OS_ReadyListInsert(tmpPtr);
-             tmpPtr->sleep = 0;
-             // After scheduler has been flagged to run no reason the check for it anymore
-             if (!shouldRunScheduler) {
-                 // If new ready to run thread higher priority then runPtr, schedule it to run afterwards
-                 if (tmpPtr->priority < runPtr->priority) {
-                     shouldRunScheduler = 1;
-                 }
-             }
-         } else {
-             tmpPtr->sleep -= SYS_TICK_PERIOD_MILLIS;
-         }
+        // Because tmpPtr->next might point to a ready thread at the end of loop if tmpPtr stops sleeping
+        tmpPtr2 = tmpPtr->next;
+        // If value would go to zero (or roll over), make thread ready
+        if (tmpPtr->sleep <= SYS_TICK_PERIOD_MILLIS) {
+            OS_SleepListRemove(tmpPtr);
+            OS_ReadyListInsert(tmpPtr);
+            tmpPtr->sleep = 0;
+            // After scheduler has been flagged to run no reason the check for it anymore
+            if (!shouldRunScheduler) {
+                // If new ready to run thread higher priority then runPtr, schedule it to run afterwards
+                if (tmpPtr->priority < runPtr->priority) {
+                    shouldRunScheduler = 1;
+                }
+            }
+        } else {
+            tmpPtr->sleep -= SYS_TICK_PERIOD_MILLIS;
+        }
 
-        tmpPtr = tmpPtr->next;
+        tmpPtr = tmpPtr2;
     }
 
     // Iterate through the periodic thread list and decrement all period counters
-    OS_TCBTypeDef **listPtr = periodicListPtr;
+    OS_TCBTypeDef **listPtr = getPeriodicListPtr();
     while (*listPtr != NULL) {
         // If value would go to zero (or roll over), make thread ready
         if ((*listPtr)->period <= SYS_TICK_PERIOD_MILLIS) {
             (*listPtr)->period = (*listPtr)->basePeriod;
+
             // Check to avoid double insertion to ready list, in case thread is still executing (in ready list)
             if ((*listPtr)->hasFullyRan) {
                 OS_ReadyListInsert((*listPtr));

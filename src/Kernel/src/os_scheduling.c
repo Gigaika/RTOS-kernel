@@ -2,11 +2,13 @@
 // Created by Aleksi on 12/02/2020.
 //
 
+
 #include <stddef.h>
 #include "os_scheduling.h"
 #include "os_core.h"
 #include "os_threads.h"
 #include "bsp.h"
+
 
 void OS_Suspend(OS_Suspend_Cause cause) {
     // When a periodic thread has ran fully and given up control, it should be removed from ready list to prevent it from running again
@@ -34,25 +36,20 @@ void OS_Schedule(void) {
     OS_TCBTypeDef *nextToRun = idlePtr;
     OS_TCBTypeDef *tmpPtr = readyHeadPtr;
 
-    if (readyHeadPtr == NULL) {
+    if (tmpPtr == NULL) {
         runPtr = idlePtr;
         OS_CriticalExit(pri);
         return;
     }
 
-    while(tmpPtr != NULL) {
-        if (tmpPtr->prev == runPtr) {
-            // To conserve round robin when runPtr has threads following it with same priority
-            if (tmpPtr->priority <= nextToRun->priority) {
-                nextToRun = tmpPtr;
-            }
-        } else {
-            if (tmpPtr->priority < nextToRun->priority) {
-                nextToRun = tmpPtr;
+    nextToRun = tmpPtr;
+    // If currently running thread is highest priority, check if the next thread in ready list has same priority (for round robin)
+    if (tmpPtr == runPtr) {
+        if (tmpPtr->next != NULL) {
+            if (tmpPtr->next->priority == runPtr->priority) {
+                nextToRun = tmpPtr->next;
             }
         }
-
-        tmpPtr = tmpPtr->next;
     }
 
     runPtr = nextToRun;

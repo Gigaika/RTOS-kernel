@@ -236,6 +236,37 @@ void test_ChainedPriorityInheritanceWorks(void) {
     TEST_ASSERT_EQUAL_INT(3, OS_GetReadyThreadByIdentifier("test thread3")->priority);
 }
 
+void test_PriorityInheritanceModifiesThreadList(void) {
+    OS_SemaphoreObjectTypeDef testSemaphore;
+    OS_InitSemaphore(&testSemaphore, SEMAPHORE_MUTEX);
+
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,1, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreateThread(&testFn, testStack2, 20, 2, "test thread2");
+    StackElementTypeDef testStack3[20];
+    OS_CreateThread(&testFn, testStack3, 20, 3, "test thread3");
+
+    // Give ownership of semaphore to thread 3
+    runPtr = OS_GetReadyThreadByIdentifier("test thread3");
+    OS_Wait(&testSemaphore);
+
+    // Block thread 2 on the semaphore
+    runPtr = OS_GetReadyThreadByIdentifier("test thread1");
+    EXPECT_BLOCKED();
+    OS_Wait(&testSemaphore);
+
+    // Thread 3 should now have the highest priority through priority inheritance, and should be first in the sorted thread list
+    TEST_ASSERT_EQUAL_STRING("test thread3", readyHeadPtr->identifier);
+
+    runPtr = OS_GetReadyThreadByIdentifier("test thread3");
+    EXPECT_SCHEDULER();
+    OS_Signal(&testSemaphore);
+
+    // The dynamic priority should have been removed from thread 3, so it should be last in the sorted thread list again
+    TEST_ASSERT_EQUAL_STRING("test thread3", readyTailPtr->identifier);
+}
+
 void test_MultiSemaphorePriorityInheritanceWorks_HighestLast(void) {
     OS_SemaphoreObjectTypeDef testSemaphore1;
     OS_InitSemaphore(&testSemaphore1, SEMAPHORE_MUTEX);
@@ -324,4 +355,39 @@ void test_MultiSemaphorePriorityInheritanceWorks_HighestFirst(void) {
     OS_Signal(&testSemaphore2);
     // semaphore 2 was the last semaphore thread 3 owned, its priority should now be fully restored
     TEST_ASSERT_EQUAL_INT(3, OS_GetReadyThreadByIdentifier("test thread3")->priority);
+}
+
+void test_SemaphoreDynamicPriorityChangesWhenGranterGetsPriority(void) {
+    OS_SemaphoreObjectTypeDef testSemaphore1;
+    OS_InitSemaphore(&testSemaphore1, SEMAPHORE_MUTEX);
+    OS_SemaphoreObjectTypeDef testSemaphore2;
+    OS_InitSemaphore(&testSemaphore2, SEMAPHORE_MUTEX);
+
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20, 1, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreateThread(&testFn, testStack2, 20, 2, "test thread2");
+    StackElementTypeDef testStack22[20];
+    OS_CreateThread(&testFn, testStack22, 20, 2, "test thread2-2");
+    StackElementTypeDef testStack3[20];
+    OS_CreateThread(&testFn, testStack3, 20, 3, "test thread3");
+
+    // thread 3 gets control of semaphore 1
+    runPtr = OS_GetReadyThreadByIdentifier("test thread3");
+    OS_Wait(&testSemaphore1);
+
+    // thread 2 gets control of semaphore 2, and blocks on semaphore 1
+    runPtr = OS_GetReadyThreadByIdentifier("test thread2");
+    OS_Wait(&testSemaphore2);
+    EXPECT_BLOCKED();
+    OS_Wait(&testSemaphore1);
+
+    // thread 1 blocks on semaphore 2, thread 3 is now only ready thread, and is essentially blocking a high priority thread
+    runPtr = OS_GetReadyThreadByIdentifier("test thread1");
+    EXPECT_BLOCKED();
+    OS_Wait(&testSemaphore2);
+    // thread 1 should have granted dynamic priority to thread 2, and as thread 2 is also blocked, to the owner of whatever is blocking thread 2 (thread 3)
+    TEST_ASSERT_EQUAL_INT(1, OS_GetReadyThreadByIdentifier("test thread3")->priority);
+    // the position in the thread list should have also been modified
+    TEST_ASSERT_EQUAL_STRING("test thread 3", readyHeadPtr->identifier);
 }

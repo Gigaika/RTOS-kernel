@@ -14,6 +14,7 @@
 static void OS_ValidateTCB(uint32_t stackSize);
 static void OS_PeriodicListInsert(OS_TCBTypeDef *thread);
 
+
 /**
  * @brief: Initializes a thread stack with default values to make it function correctly when scheduled for first time
  * @param tcb: Pointer to the TCB element whose stack is to be initialized
@@ -33,7 +34,7 @@ static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef
 static void OS_AddThread(OS_TCBTypeDef *thread);
 
 /**
- * @brief: Inserts an element to the end of the provided thread linked list
+ * @brief: Inserts an element in to a priority sorted linked list of threads
  * @param head: Pointer to the pointer of the first element of the linked list
  * @param tail: Pointer to the pointer of the last element of the linked list
  * @param element: Pointer to the TCB element that should be added
@@ -56,13 +57,16 @@ static OS_TCBTypeDef threadAllocations[NUM_USER_THREADS] = { 0 };
 // Periodic threads need to be in two lists at times (periodic, and ready/blocked), so make periodic list a pre-allocated array of pointers,
 // since it would otherwise mess up the next&prev pointers of the TCB. (Extra null element in list to make iterating easier)
 static OS_TCBTypeDef *periodicThreads[NUM_USER_THREADS+1] = { NULL };
+static OS_TCBTypeDef **periodicListPtr = periodicThreads;
 // Number of user threads created
 static uint32_t threadsCreated = 0;
 
 
 /* ----------------------------------------------- Global variables ----------------------------------------------- */
-OS_TCBTypeDef *idlePtr = NULL;   // Thread to be executed when nothing else is ready
-OS_TCBTypeDef *runPtr = NULL;    // Currently executing thread
+// Thread to be executed when nothing else is ready
+OS_TCBTypeDef *idlePtr = NULL;
+// Currently executing thread
+OS_TCBTypeDef *runPtr = NULL;
 
 OS_TCBTypeDef *readyHeadPtr = NULL;
 OS_TCBTypeDef *readyTailPtr = NULL;
@@ -73,9 +77,6 @@ OS_TCBTypeDef *sleepTailPtr = NULL;
 OS_TCBTypeDef *blockHeadPtr = NULL;
 OS_TCBTypeDef *blockTailPtr = NULL;
 
-// TODO: shouldn't be modifiable
-OS_TCBTypeDef **periodicListPtr = periodicThreads;
-
 
 /* ------------------------------------------- Test helper functions ---------------------------------------------- */
 /**
@@ -84,7 +85,7 @@ OS_TCBTypeDef **periodicListPtr = periodicThreads;
 void OS_ResetThreads(void) {
     memset(&idleThreadAllocation, 0, sizeof(idleThreadAllocation));
     memset(threadAllocations, 0, sizeof(threadAllocations));
-    memset(periodicThreads, 0, sizeof(*threadAllocations));
+    memset(periodicThreads, 0, sizeof(periodicThreads));
     threadsCreated = 0;
     idlePtr = NULL;
     runPtr = NULL;
@@ -240,7 +241,7 @@ void OS_CreateIdleThread(void (*idleFunction)(void *), StackElementTypeDef *idle
     OS_MapInitialThreadValues(idleThread, idleStkPtr, stackSize, THREAD_MIN_PRIORITY + 1, "idle thread", 0);
     OS_InitializeTCBStack(idleThread, idleFunction);
     idlePtr = idleThread;
-    // make the run pointer be the idle thread just in case no other threads are added
+    // make the run pointer be the idle thread just in case no other ready threads are added
     runPtr = idleThread;
 }
 
@@ -249,15 +250,37 @@ void OS_CreateIdleThread(void (*idleFunction)(void *), StackElementTypeDef *idle
 static void OS_ThreadLinkedListInsert(OS_TCBTypeDef **head, OS_TCBTypeDef **tail, OS_TCBTypeDef *element) {
     assert(element != NULL);
 
-    OS_TCBTypeDef *oldLast = *tail;
-
-    if (oldLast == NULL) {  // if this is the first element, modify head pointer as well
+    if (*head == NULL) {
         *head = element;
-    } else {
-        oldLast->next = element;
-        element->prev = oldLast;
+        *tail = element;
+        return;
     }
 
+    OS_TCBTypeDef *tmpPtr = *head;
+    while(tmpPtr != NULL) {
+        // Find the first thread with lower priority than new thread, and insert the new thread in front of it
+        if (element->priority < tmpPtr->priority) {
+            // if current pointer is head of the list
+            if (tmpPtr->prev == NULL) {
+                *head = element;
+                element->next = tmpPtr;
+                tmpPtr->prev = element;
+            } else {
+                tmpPtr->prev->next = element;
+                element->prev = tmpPtr->prev;
+                element->next = tmpPtr;
+                tmpPtr->prev = element;
+            }
+
+            return;
+        }
+
+        tmpPtr = tmpPtr->next;
+    }
+
+    // If this point is reached, the new thread is lower priority than anything in the list, so we make it the new tail
+    (*tail)->next = element;
+    element->prev = *tail;
     *tail = element;
 }
 
@@ -269,25 +292,28 @@ static void OS_ThreadLinkedListRemove(OS_TCBTypeDef **head, OS_TCBTypeDef **tail
     element->next = NULL;
     element->prev = NULL;
 
-    // thread was the only element
+    // if thread was the only element
     if (previous == NULL && next == NULL) {
         *head = NULL;
         *tail = NULL;
         return;
     }
 
+    // if thread was not the last element
     if (next != NULL) {
         next->prev = previous;
-    } else {    // if thread was the last element
+    } else {
         *tail = previous;
     }
 
+    // if thread was not the first element
     if (previous != NULL) {
         previous->next = next;
-    } else {    // if thread was the first element
+    } else {
         *head = next;
     }
 }
+
 
 /* --------------------------- Exported function wrappers for thread list manipulation ---------------------------- */
 void OS_ReadyListInsert(OS_TCBTypeDef *thread) {
@@ -324,4 +350,8 @@ void OS_BlockedListRemove(OS_TCBTypeDef *thread) {
     uint32_t priority = OS_CriticalEnter();
     OS_ThreadLinkedListRemove(&blockHeadPtr, &blockTailPtr, thread);
     OS_CriticalExit(priority);
+}
+
+OS_TCBTypeDef **getPeriodicListPtr(void) {
+    return periodicListPtr;
 }
