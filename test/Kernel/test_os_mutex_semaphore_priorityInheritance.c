@@ -239,18 +239,20 @@ void test_IndirectPriorityInheritanceWorks(void) {
     EXPECT_BLOCKED();
     OS_Wait(&testSemaphore1);
 
-    // thread 1 blocks on semaphore 2, thread 3 is now only ready thread, and is essentially blocking a high priority thread
+    // thread 1 blocks on semaphore 2
     runPtr = OS_GetReadyThreadByIdentifier("test thread1");
     EXPECT_BLOCKED();
     OS_Wait(&testSemaphore2);
 
-    // thread 1 should have granted dynamic priority to thread 2, and as thread 2 is also blocked, to the owner of whatever is blocking thread 2 (thread 3)
+    // thread 1 should have granted dynamic priority to thread 2, and because thread 2 is also blocked,
+    // to whatever is blocking thread 2 as well (thread 3)
     TEST_ASSERT_EQUAL_INT(1, OS_GetReadyThreadByIdentifier("test thread3")->priority);
-    // the position in the thread list should have also been modified
+    // the position of thread 3 in the thread list should have also been modified
     TEST_ASSERT_EQUAL_STRING("test thread3", readyHeadPtr->identifier);
 
     runPtr = OS_GetReadyThreadByIdentifier("test thread3");
     EXPECT_SCHEDULER();
     OS_Signal(&testSemaphore1);
+    // When thread 3 releases the semaphore that was blocking thread 2 (and thread 1 indirectly) it should restore the priority
     TEST_ASSERT_EQUAL_INT(3, OS_GetReadyThreadByIdentifier("test thread3")->priority);
 }
