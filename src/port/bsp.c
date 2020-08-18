@@ -17,6 +17,7 @@ void BSP_HardwareInit() {
 
 
 void BSP_TriggerPendSV() {
+
 }
 
 void EnableInterrupts() {
@@ -27,14 +28,3 @@ void DisableInterrupts() {
 
 }
 
-void PendSV_Handler(void) {
-    printf("heh");
-}
-
-uint32_t OS_CriticalEnter(void) {
-    return 1;
-}
-
-void OS_CriticalExit(uint32_t param) {
-
-}

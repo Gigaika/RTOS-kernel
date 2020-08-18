@@ -6,7 +6,7 @@
 #include "os_buffers.h"
 #include "os_scheduling.h"
 #include "os_core.h"
-#include "memory.h"
+#include "string.h"
 
 
 /* ---------------------------------------- Private function declarations ----------------------------------------- */
@@ -55,12 +55,12 @@ void OS_BufferWrite(OS_BufferTypeDef *bufferObject, void *dataPtr, uint32_t data
         bufferObject->spaceRemaining -= dataSize;
     }
 
+    // Cast to byte ptr so that pointer arithmetic can be done
+    uint8_t *castDestPtr = bufferObject->dataPtr;
+    uint8_t *castSrcPtr = dataPtr;
+
     // If we need to roll over and write in two parts
     if (dataSize > (bufferObject->elements - bufferObject->writeIndex)) {
-        // Cast to byte ptr so that pointer arithmetic can be done
-        uint8_t *castDestPtr = bufferObject->dataPtr;
-        uint8_t *castSrcPtr = dataPtr;
-
         uint32_t firstWriteSize = bufferObject->elements - bufferObject->writeIndex;
         memcpy(castDestPtr+(bufferObject->writeIndex*bufferObject->dataSizeBytes), castSrcPtr, firstWriteSize*bufferObject->dataSizeBytes);
         bufferObject->writeIndex = 0;
@@ -69,7 +69,7 @@ void OS_BufferWrite(OS_BufferTypeDef *bufferObject, void *dataPtr, uint32_t data
         memcpy(castDestPtr+(bufferObject->writeIndex*bufferObject->dataSizeBytes), castSrcPtr+(firstWriteSize*bufferObject->dataSizeBytes), secondWriteSize*bufferObject->dataSizeBytes);
         bufferObject->writeIndex += secondWriteSize;
     } else {
-        memcpy(bufferObject->dataPtr+(bufferObject->writeIndex*bufferObject->dataSizeBytes), dataPtr, dataSize*bufferObject->dataSizeBytes);
+        memcpy(castDestPtr+(bufferObject->writeIndex*bufferObject->dataSizeBytes), dataPtr, dataSize*bufferObject->dataSizeBytes);
         // If we wrote until the last index
         if (dataSize == (bufferObject->elements - bufferObject->writeIndex)) {
             bufferObject->writeIndex = 0;

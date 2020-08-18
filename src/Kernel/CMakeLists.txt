@@ -14,5 +14,5 @@ target_sources(MRtos_lib
             src/os_semaphore.c
             src/os_threads.c
             src/os_buffers.c
-            src/asm/mrtos.s
+        ../port/mrtos.s
         )

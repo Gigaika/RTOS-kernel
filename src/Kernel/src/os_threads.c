@@ -5,7 +5,7 @@
 
 #include "os_threads.h"
 #include "stddef.h"
-#include "memory.h"
+#include "string.h"
 #include "assert.h"
 #include "os_core.h"
 

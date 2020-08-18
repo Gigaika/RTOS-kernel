@@ -88,6 +88,7 @@ static int32_t unblockThread(OS_SemaphoreObjectTypeDef *semaphoreObject) {
 
     // Block list did not contain any threads with this semaphore as the blockPtr, should never happen
     assert(0);
+    return 0;
 }
 
 static void removeDynamicPriorityFromOwner(OS_SemaphoreObjectTypeDef *semaphoreObject) {
