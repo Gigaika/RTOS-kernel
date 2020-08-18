@@ -40,6 +40,7 @@ void OS_BufferInit(OS_BufferTypeDef *bufferObject, void *dataPtr, uint32_t eleme
 
 void OS_BufferWrite(OS_BufferTypeDef *bufferObject, void *dataPtr, uint32_t dataSize) {
     OS_Wait(&bufferObject->semaphore);
+    uint32_t pri = OS_CriticalEnter();
 
     dataSize = dataSize > bufferObject->elements ? bufferObject->elements : dataSize;
 
@@ -82,11 +83,42 @@ void OS_BufferWrite(OS_BufferTypeDef *bufferObject, void *dataPtr, uint32_t data
         bufferObject->readIndex = bufferObject->writeIndex;
     }
 
+    OS_CriticalExit(pri);
     OS_Signal(&bufferObject->semaphore);
 }
 
 void OS_BufferRead(OS_BufferTypeDef *bufferObject, void *dataPtr, uint32_t dataSize) {
+    OS_Wait(&bufferObject->semaphore);
     uint32_t pri = OS_CriticalEnter();
 
+    uint32_t unread = (bufferObject->elements - bufferObject->spaceRemaining);
+    dataSize = dataSize > unread ? unread : dataSize;
+
+    // Cast to byte ptr so that pointer arithmetic can be done
+    uint8_t *castDestPtr = dataPtr;
+    uint8_t *castSrcPtr = bufferObject->dataPtr;
+
+    // If we need to roll over and read in two parts
+    if (dataSize > (bufferObject->elements - bufferObject->readIndex)) {
+        uint32_t firstReadSize = bufferObject->elements - bufferObject->readIndex;
+        memcpy(castDestPtr, castSrcPtr+(bufferObject->readIndex*bufferObject->dataSizeBytes), firstReadSize*bufferObject->dataSizeBytes);
+        bufferObject->readIndex = 0;
+
+        uint32_t secondReadSize = dataSize-firstReadSize;
+        memcpy(castDestPtr+(firstReadSize*bufferObject->dataSizeBytes), castSrcPtr+(bufferObject->readIndex*bufferObject->dataSizeBytes), secondReadSize*bufferObject->dataSizeBytes);
+        bufferObject->readIndex += secondReadSize;
+        bufferObject->spaceRemaining += (firstReadSize+secondReadSize);
+    } else {
+        memcpy(castDestPtr+(bufferObject->readIndex*bufferObject->dataSizeBytes), castSrcPtr, dataSize*bufferObject->dataSizeBytes);
+        // If we read until the last index
+        if (dataSize == (bufferObject->elements - bufferObject->writeIndex)) {
+            bufferObject->readIndex = 0;
+        } else {
+            bufferObject->readIndex += dataSize;
+        }
+        bufferObject->spaceRemaining += (dataSize);
+    }
+
     OS_CriticalExit(pri);
+    OS_Signal(&bufferObject->semaphore);
 }

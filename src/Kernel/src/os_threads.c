@@ -28,7 +28,7 @@ static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *
 static void OS_MapInitialThreadValues(OS_TCBTypeDef *thread, StackElementTypeDef *stkPtr, uint32_t stackSize, uint32_t priority, const char *identifier, uint32_t period);
 
 /***
- * @brief: Adds the thread to the linked list of ready threads. The thread will become the runPtr if it has the highest priority so far.
+ * @brief: Adds the thread to the linked list of ready threads.
  * @param tcb: Pointer to the TCB element that is to be added
  */
 static void OS_AddThread(OS_TCBTypeDef *thread);
@@ -150,11 +150,7 @@ OS_TCBTypeDef *OS_GetBlockedThreadByIdentifier(const char *identifier) {
 static void OS_AddThread(OS_TCBTypeDef *thread) {
     // if runPtr or idlePtr not initialized, OS_Init has not been called before creating user threads like it should have
     assert(runPtr != NULL && idlePtr != NULL);
-
     OS_ReadyListInsert(thread);
-    if (thread->priority < runPtr->priority) {
-        runPtr = thread;
-    }
 }
 
 static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *)) {
@@ -163,7 +159,7 @@ static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *
 
     *thread->stkPtr-- = 0x0100000;            // PSR
     *thread->stkPtr-- = (uint32_t)function;   // Program counter
-    *thread->stkPtr-- = 0x14141414;           // Link register
+    *thread->stkPtr-- = 0xFFFFFFF9;           // Link register
     *thread->stkPtr-- = 0x12121212;           // R12
     *thread->stkPtr-- = 0x03030303;           // R3 ->
     *thread->stkPtr-- = 0x02020202;           // -
@@ -241,8 +237,10 @@ void OS_CreateIdleThread(void (*idleFunction)(void *), StackElementTypeDef *idle
     OS_MapInitialThreadValues(idleThread, idleStkPtr, stackSize, THREAD_MIN_PRIORITY + 1, "idle thread", 0);
     OS_InitializeTCBStack(idleThread, idleFunction);
     idlePtr = idleThread;
-    // make the run pointer be the idle thread just in case no other ready threads are added
+    // make the run pointer be the idle thread so that the first context switch works correctly
     runPtr = idleThread;
+    // grow the idle thread stack pointer by 8 to accommodate the 8 registers popped in the first context switch
+    runPtr->stkPtr += 8;
 }
 
 

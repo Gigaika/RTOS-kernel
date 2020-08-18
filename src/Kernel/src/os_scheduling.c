@@ -9,7 +9,6 @@
 #include "os_threads.h"
 #include "bsp.h"
 
-
 void OS_Suspend(OS_Suspend_Cause cause) {
     // When a periodic thread has ran fully and given up control, it should be removed from ready list to prevent it from running again
     if (cause == OS_SUSPEND_RELINQUISH) {

@@ -17,6 +17,7 @@ static void pendSVStub(int NumCalls) {
 }
 
 void setUp(void) {
+    // TODO: Edit test cases to accommodate the fact that runptr no longer gets updated before first schedule/ctx switch
     DisableInterrupts_Ignore();
     BSP_SysClockConfig_Ignore();
     BSP_HardwareInit_Ignore();
@@ -140,4 +141,32 @@ void test_SleepWorks(void) {
     EXPECT_SCHEDULER();
     SysTickHandler();
     TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("test thread1"), runPtr);
+}
+
+void test_periodicThreadGetsScheduled(void) {
+    BSP_TriggerPendSV_AddCallback(&pendSVStub);
+
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20, 3, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreatePeriodicThread(&testFn, testStack2, 20, 1, 10*SYS_TICK_PERIOD_MILLIS, "periodic thread1");
+
+    // To make thread1 runptr
+    OS_Schedule();
+
+    // Scheduler will run once for each time slice, create expect statements for each timeslice consumed in this test
+    for (int i = 0; i < (9 * SYS_TICK_PERIOD_MILLIS) / THREAD_TIME_SLICE_MILLIS; i++) {
+        EXPECT_SCHEDULER();
+    }
+
+    // Trigger the systick handler until we are 1 systick away from the periodic thread being ready to run
+    for (int i = 0; i < 9; i++) {
+        SysTickHandler();
+        TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("test thread1"), runPtr);
+    }
+
+    // Periodic thread should now be ready to run, and it should be scheduled regardless of timeslice, as it is higher priority than runPtr
+    EXPECT_SCHEDULER();
+    SysTickHandler();
+    TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("periodic thread1"), runPtr);
 }
