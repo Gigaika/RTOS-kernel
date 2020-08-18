@@ -149,6 +149,30 @@ void test_BufferReadRollOver(void) {
 
     TEST_ASSERT_EQUAL_INT(2, testBuffer.readIndex);
     TEST_ASSERT_EQUAL_INT(9, testBuffer.spaceRemaining);
+    TEST_ASSERT_EQUAL_INT(8, testBuffer.lastReadSize);
 }
 
+void test_NotEnoughData(void) {
+    uint32_t data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    OS_BufferTypeDef testBuffer;
+    OS_BufferInit(&testBuffer, &data, 10, sizeof(uint32_t));
+    testBuffer.spaceRemaining = 6;
+    testBuffer.readIndex = 0;
 
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");
+
+    runPtr = OS_GetReadyThreadByIdentifier("test thread1");
+
+    uint32_t readData[5] = {0};
+    OS_BufferRead(&testBuffer, readData, 5);
+
+    for (int i = 0; i < 4; i++) {
+        TEST_ASSERT_EQUAL_INT(data[i], readData[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(0, readData[4]);
+
+    TEST_ASSERT_EQUAL_INT(4, testBuffer.readIndex);
+    TEST_ASSERT_EQUAL_INT(10, testBuffer.spaceRemaining);
+    TEST_ASSERT_EQUAL_INT(4, testBuffer.lastReadSize);
+}

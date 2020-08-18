@@ -53,6 +53,15 @@ void test_ThreadsCanBeCreated(void) {
     TEST_ASSERT_EQUAL_STRING("test thread", readyTailPtr->identifier);
 }
 
+void test_IdlePtrStillRunPtr(void) {
+    StackElementTypeDef testStack[20];
+    OS_CreateThread(&testFn, testStack, 20,3, "test thread");
+
+    TEST_ASSERT_EQUAL_STRING("test thread", readyHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("test thread", readyTailPtr->identifier);
+    TEST_ASSERT_EQUAL_STRING("idle thread", runPtr->identifier);
+}
+
 void test_MultipleThreadsCanBeCreated(void) {
     StackElementTypeDef testStack1[20];
     OS_CreateThread(&testFn, testStack1, 20,3, "test thread1");

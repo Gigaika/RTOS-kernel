@@ -13,6 +13,7 @@ typedef struct {
     uint32_t dataSizeBytes;
     uint32_t spaceRemaining;
     uint32_t missed;
+    uint32_t lastReadSize;
     OS_SemaphoreObjectTypeDef semaphore;
     void *dataPtr;
     uint32_t readIndex;

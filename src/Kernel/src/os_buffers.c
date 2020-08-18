@@ -93,6 +93,7 @@ void OS_BufferRead(OS_BufferTypeDef *bufferObject, void *dataPtr, uint32_t dataS
 
     uint32_t unread = (bufferObject->elements - bufferObject->spaceRemaining);
     dataSize = dataSize > unread ? unread : dataSize;
+    bufferObject->lastReadSize = dataSize;
 
     // Cast to byte ptr so that pointer arithmetic can be done
     uint8_t *castDestPtr = dataPtr;
