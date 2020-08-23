@@ -7,6 +7,7 @@
 #include "os_scheduling.h"
 #include "os_core.h"
 #include "string.h"
+#include "../port/bsp.h"
 
 
 /* ---------------------------------------- Private function declarations ----------------------------------------- */

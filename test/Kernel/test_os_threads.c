@@ -50,6 +50,7 @@ void test_ThreadsCanBeCreated(void) {
     OS_CreateThread(&testFn, testStack, 20,3, "test thread");
 
     TEST_ASSERT_EQUAL_STRING("test thread", readyHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_INT(0, readyHeadPtr->id);
     TEST_ASSERT_EQUAL_STRING("test thread", readyTailPtr->identifier);
 }
 
@@ -70,7 +71,9 @@ void test_MultipleThreadsCanBeCreated(void) {
     OS_CreateThread(&testFn, testStack2, 20,3, "test thread2");
 
     TEST_ASSERT_EQUAL_STRING("test thread1", readyHeadPtr->identifier);
+    TEST_ASSERT_EQUAL_INT(0, readyHeadPtr->id);
     TEST_ASSERT_EQUAL_STRING("test thread2", readyTailPtr->identifier);
+    TEST_ASSERT_EQUAL_INT(1, readyTailPtr->id);
     TEST_ASSERT_EQUAL_PTR(readyTailPtr, readyHeadPtr->next);
     TEST_ASSERT_EQUAL_PTR(NULL, readyHeadPtr->prev);
     TEST_ASSERT_EQUAL_PTR(readyHeadPtr, readyTailPtr->prev);
@@ -84,12 +87,8 @@ void test_ThreadStackIsCorrectlyInitialized(void) {
     OS_TCBTypeDef *thread1 = OS_GetReadyThreadByIdentifier("test thread");
 
     TEST_ASSERT_EQUAL_PTR(&testStack[4], thread1->stkPtr);
-    TEST_ASSERT_EQUAL_INT(0x0100000, testStack[19]);
+    TEST_ASSERT_EQUAL_INT(0x01000000, testStack[19]);
     TEST_ASSERT_EQUAL_INT(0x04040404, testStack[4]);
-}
-
-void test_IdleThreadStackIsCorrectlyInitialized(void) {
-    TEST_ASSERT_EQUAL_INT(0x00000000, *runPtr->stkPtr);
 }
 
 /* ------------------------------------------ Thread list remove tests--------------------------------------------- */

@@ -228,8 +228,8 @@ void OS_Wait(OS_SemaphoreObjectTypeDef *semaphoreObject) {
         runPtr->blockPtr = semaphoreObject;
 
         // Only mutex semaphores implement priority inheritance
-        if (semaphoreObject->type != SEMAPHORE_FLAG) {
-            // If owner of thread has higher priority than the currently running thread, elevate the owner priority
+        if (semaphoreObject->type == SEMAPHORE_MUTEX) {
+            // If owner of thread has lower priority than the currently running thread, elevate the owner priority
             if (runPtr->priority <= semaphoreObject->owner->priority) {
                 grantDynamicPriorityToOwner(semaphoreObject);
             }

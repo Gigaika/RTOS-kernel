@@ -133,14 +133,45 @@ void test_SleepWorks(void) {
 
     // Trigger the systick handler until we are 1 systick away from the sleeping thread being ready to run
     for (int i = 0; i < 9; i++) {
-        SysTickHandler();
-        TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("test thread2"), runPtr);
+        SysTick_Handler();
+        TEST_ASSERT_EQUAL_STRING("test thread2", runPtr->identifier);
     }
 
     // Sleeping thread should now be ready to run, and it should be scheduled regardless of timeslice, as it is higher priority than runPtr
     EXPECT_SCHEDULER();
-    SysTickHandler();
-    TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("test thread1"), runPtr);
+    SysTick_Handler();
+    TEST_ASSERT_EQUAL_STRING("test thread1", runPtr->identifier);
+}
+
+void test_SleepEndRunsScheduler(void) {
+    BSP_TriggerPendSV_AddCallback(&pendSVStub);
+
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20,1, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreateThread(&testFn, testStack2, 20, 3, "test thread2");
+
+    runPtr = OS_GetReadyThreadByIdentifier("test thread1");
+    EXPECT_SCHEDULER();
+    OS_Sleep(7*SYS_TICK_PERIOD_MILLIS);
+    OS_Schedule();
+    TEST_ASSERT_EQUAL_STRING("test thread2", runPtr->identifier);
+
+    // Scheduler will run once for each time slice, create expect statements for each timeslice consumed in this test
+    for (int i = 0; i < (7 * SYS_TICK_PERIOD_MILLIS) / THREAD_TIME_SLICE_MILLIS; i++) {
+        EXPECT_SCHEDULER();
+    }
+
+    // Trigger the systick handler until we are 1 systick away from the sleeping thread being ready to run
+    for (int i = 0; i < 6; i++) {
+        SysTick_Handler();
+        TEST_ASSERT_EQUAL_STRING("test thread2", runPtr->identifier);
+    }
+
+    // Sleeping thread should now be ready to run, and it should be scheduled regardless of timeslice, as it is higher priority than runPtr
+    EXPECT_SCHEDULER();
+    SysTick_Handler();
+    TEST_ASSERT_EQUAL_STRING("test thread1", runPtr->identifier);
 }
 
 void test_periodicThreadGetsScheduled(void) {
@@ -151,8 +182,8 @@ void test_periodicThreadGetsScheduled(void) {
     StackElementTypeDef testStack2[20];
     OS_CreatePeriodicThread(&testFn, testStack2, 20, 1, 10*SYS_TICK_PERIOD_MILLIS, "periodic thread1");
 
-    // To make thread1 runptr
-    OS_Schedule();
+
+    runPtr = OS_GetReadyThreadByIdentifier("test thread1");
 
     // Scheduler will run once for each time slice, create expect statements for each timeslice consumed in this test
     for (int i = 0; i < (9 * SYS_TICK_PERIOD_MILLIS) / THREAD_TIME_SLICE_MILLIS; i++) {
@@ -161,12 +192,40 @@ void test_periodicThreadGetsScheduled(void) {
 
     // Trigger the systick handler until we are 1 systick away from the periodic thread being ready to run
     for (int i = 0; i < 9; i++) {
-        SysTickHandler();
+        SysTick_Handler();
         TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("test thread1"), runPtr);
     }
 
     // Periodic thread should now be ready to run, and it should be scheduled regardless of timeslice, as it is higher priority than runPtr
     EXPECT_SCHEDULER();
-    SysTickHandler();
+    SysTick_Handler();
+    TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("periodic thread1"), runPtr);
+}
+
+void test_periodicThreadRunsTooLong(void) {
+    BSP_TriggerPendSV_AddCallback(&pendSVStub);
+
+    StackElementTypeDef testStack1[20];
+    OS_CreateThread(&testFn, testStack1, 20, 3, "test thread1");
+    StackElementTypeDef testStack2[20];
+    OS_CreatePeriodicThread(&testFn, testStack2, 20, 1, 10*SYS_TICK_PERIOD_MILLIS, "periodic thread1");
+
+
+    runPtr = OS_GetReadyThreadByIdentifier("test thread1");
+
+    // Scheduler will run once for each time slice, create expect statements for each timeslice consumed in this test
+    for (int i = 0; i < (9 * SYS_TICK_PERIOD_MILLIS) / THREAD_TIME_SLICE_MILLIS; i++) {
+        EXPECT_SCHEDULER();
+    }
+
+    // Trigger the systick handler until we are 1 systick away from the periodic thread being ready to run
+    for (int i = 0; i < 9; i++) {
+        SysTick_Handler();
+        TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("test thread1"), runPtr);
+    }
+
+    // Periodic thread should now be ready to run, and it should be scheduled regardless of timeslice, as it is higher priority than runPtr
+    EXPECT_SCHEDULER();
+    SysTick_Handler();
     TEST_ASSERT_EQUAL_PTR(OS_GetReadyThreadByIdentifier("periodic thread1"), runPtr);
 }

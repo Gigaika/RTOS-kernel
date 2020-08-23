@@ -10,6 +10,7 @@
 #include "os_core.h"
 
 
+
 /* ---------------------------------------- Private function declarations ----------------------------------------- */
 static void OS_ValidateTCB(uint32_t stackSize);
 static void OS_PeriodicListInsert(OS_TCBTypeDef *thread);
@@ -157,7 +158,7 @@ static void OS_InitializeTCBStack(OS_TCBTypeDef *thread, void (*function)(void *
     // make stkPtr point to last element
     thread->stkPtr = &thread->stkPtr[thread->stackSize-1];
 
-    *thread->stkPtr-- = 0x0100000;            // PSR
+    *thread->stkPtr-- = 0x01000000;           // PSR
     *thread->stkPtr-- = (uint32_t)function;   // Program counter
     *thread->stkPtr-- = 0xFFFFFFF9;           // Link register
     *thread->stkPtr-- = 0x12121212;           // R12
@@ -215,6 +216,7 @@ void OS_CreateThread(void (*function)(void *), StackElementTypeDef *stkPtr, uint
     OS_ValidateTCB(stackSize);
     OS_TCBTypeDef *newThread = &threadAllocations[threadsCreated];
     OS_MapInitialThreadValues(newThread, stkPtr, stackSize, priority, identifier, 0);
+    newThread->id = threadsCreated;
     OS_InitializeTCBStack(newThread, function);
     OS_AddThread(newThread);
     threadsCreated++;
@@ -239,8 +241,6 @@ void OS_CreateIdleThread(void (*idleFunction)(void *), StackElementTypeDef *idle
     idlePtr = idleThread;
     // make the run pointer be the idle thread so that the first context switch works correctly
     runPtr = idleThread;
-    // grow the idle thread stack pointer by 8 to accommodate the 8 registers popped in the first context switch
-    runPtr->stkPtr += 8;
 }
 
 

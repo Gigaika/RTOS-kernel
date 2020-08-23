@@ -2,12 +2,13 @@
 // Created by Aleksi on 12/02/2020.
 //
 
-
 #include <stddef.h>
 #include "os_scheduling.h"
 #include "os_core.h"
 #include "os_threads.h"
-#include "bsp.h"
+#include "../port/bsp.h"
+
+uint32_t firstSwitch = 1;
 
 void OS_Suspend(OS_Suspend_Cause cause) {
     // When a periodic thread has ran fully and given up control, it should be removed from ready list to prevent it from running again
@@ -39,6 +40,10 @@ void OS_Schedule(void) {
         runPtr = idlePtr;
         OS_CriticalExit(pri);
         return;
+    }
+    
+    if (firstSwitch) {
+      firstSwitch = 0;
     }
 
     nextToRun = tmpPtr;

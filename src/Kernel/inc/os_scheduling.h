@@ -7,6 +7,8 @@
 
 #include "stdint.h"
 
+extern uint32_t firstSwitch;
+
 typedef enum {
     OS_SUSPEND_BLOCK       = 0x0,
     OS_SUSPEND_UNBLOCK     = 0x1,

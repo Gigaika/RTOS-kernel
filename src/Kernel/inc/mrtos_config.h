@@ -14,10 +14,14 @@
 #define THREAD_MAX_PRIORITY 0           // any x >= 0
 #define NUM_USER_THREADS 10
 #define THREAD_TIME_SLICE_MILLIS 5
-
 /* ---------------------- System configuration ---------------------------*/
 #define SYSCLOCK_FREQUENCY 80
 #define SYS_TICK_PERIOD_MILLIS 1
+
+#ifdef TEST
+#define NUM_USER_THREADS 10
+#endif
+
 
 /* --------------------- Configuration typedefs ----------------------------*/
 typedef uint32_t StackElementTypeDef;       // 32-bit wide stack
