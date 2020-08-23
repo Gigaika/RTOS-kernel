@@ -102,12 +102,13 @@ void test_IndirectPriorityInheritanceWorksWhenTopOwnerBlocked(void) {
     EXPECT_BLOCKED();
     OS_Wait(&testSemaphore1);
 
-    // thread 1 blocks on semaphore
+    // thread 1 blocks on semaphore 2
     runPtr = OS_GetReadyThreadByIdentifier("test thread1");
     EXPECT_BLOCKED();
     OS_Wait(&testSemaphore2);
     // thread 1 should have granted dynamic priority to thread 2, and because thread 2 is also blocked,
     // to whatever is blocking thread 2 as well (thread 3)
+    TEST_ASSERT_EQUAL_INT(1, OS_GetBlockedThreadByIdentifier("test thread2")->priority);
     TEST_ASSERT_EQUAL_INT(1, OS_GetBlockedThreadByIdentifier("test thread3")->priority);
 
     OS_Signal(&testSemaphore0);

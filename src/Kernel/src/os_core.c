@@ -7,7 +7,7 @@
 #include "os_core.h"
 #include "stddef.h"
 #include "os_threads.h"
-#include "bsp.h"
+#include "../port/bsp.h"
 
 
 /* --------------------------------------------- Private variables ----------------------------------------------- */
@@ -35,7 +35,7 @@ void OS_ResetState() {
 void OS_Init(void (*idleFunction)(void *), StackElementTypeDef *idleStackPtr, uint32_t idleStackSize) {
     DisableInterrupts();
     // Configure system clock using the board support package
-    BSP_SysClockConfig(SYSCLOCK_FREQUENCY);
+    BSP_SysClockConfig();
     // Configure hardware interrupts needed by OS (PendSV, SysTick)
     BSP_HardwareInit();
     // Create the idle thread and initialize the idlePtr
@@ -58,7 +58,7 @@ uint64_t OS_GetSysTickCount(void) {
  * @brief: Handler for the SysTick interrupt, is responsible for triggering scheduler (PendSV) after a thread has
  *         used its time slice. Also used for deriving software timers and implementing thread sleeping.
  */
-void SysTickHandler() {
+void SysTick_Handler() {
     static uint32_t currentTickCount = 0;  // The amount of SysTicks since last scheduler execution
     currentTickCount++;
     sysTickCount++;

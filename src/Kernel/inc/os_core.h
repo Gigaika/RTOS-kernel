@@ -25,6 +25,7 @@ struct OS_TCBStruct {
     OS_TCBTypeDef *next;
     OS_TCBTypeDef *prev;
     const char *identifier;
+    uint8_t id;
     uint32_t stackSize;
     uint32_t basePriority;
     uint32_t priority;
@@ -40,7 +41,7 @@ struct OS_TCBStruct {
 /* -------------------------------------------- Test helper functions -------------------------------------------- */
 #if TEST
 void OS_ResetState(void);
-void SysTickHandler(void);
+void SysTick_Handler(void);
 #endif
 
 
@@ -61,20 +62,6 @@ void OS_Init(void (*idleFunction)(void *), StackElementTypeDef *idleStackPtr, ui
  */
 void OS_Launch(void);
 
-/* --------------------------------------------- Critical sections  ---------------------------------------------- */
-/**
- * @brief: Enters a critical section (disables interrupts), written in assembly
- * @return: The value of PRIMASK register before disabling interrupts
- */
-uint32_t OS_CriticalEnter(void);
-
-/**
- * @brief: Exits a critical section (enables interrupts), written in assembly
- * @param priority: The priority level that the PRIMASK register should be set to
- */
-void OS_CriticalExit(uint32_t priority);
-void EnableInterrupts(void);    // Assembly
-void DisableInterrupts(void);   // Assembly
 
 /* --------------------------------------------- Utility functions ---------------------------------------------- */
 uint64_t OS_GetSysTickCount(void);
