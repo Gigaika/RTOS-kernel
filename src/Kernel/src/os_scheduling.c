@@ -6,7 +6,7 @@
 #include "os_scheduling.h"
 #include "os_core.h"
 #include "os_threads.h"
-#include "../port/bsp.h"
+#include "bsp.h"
 
 uint32_t firstSwitch = 1;
 
