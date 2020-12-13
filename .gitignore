@@ -17,6 +17,7 @@ GoogleTest/__init__.py
 .idea/
 
 build/
+Debug/
 cmake-build-debug/
 
 # Generated files

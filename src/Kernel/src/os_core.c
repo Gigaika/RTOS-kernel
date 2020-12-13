@@ -7,7 +7,6 @@
 #include "os_core.h"
 #include "stddef.h"
 #include "os_threads.h"
-#include "../port/bsp.h"
 
 
 /* --------------------------------------------- Private variables ----------------------------------------------- */

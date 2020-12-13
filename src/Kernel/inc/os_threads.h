@@ -8,7 +8,7 @@
 
 #include "mrtos_config.h"
 #include "os_core.h"
-#include "../port/bsp.h"
+#include "bsp.h"
 
 
 /* ----------------------------------------------- Global variables ----------------------------------------------- */
